@@ -6,50 +6,43 @@
 - **Relacionado a:** ADR-002, ADR-005, ADR-006
 
 ## Contexto e Problema
-As contas Cloud criadas pelo `cloud-manager` (CAPE) passam por um processo estruturado de criação e baseline, tornando-se `ACTIVE`. No entanto, o ciclo de vida dessas contas não termina no provisionamento inicial. Ao longo do tempo, dois problemas críticos surgem:
-1. **Drift de Configuração:** Administradores alteram manualmente recursos provisionados pelo baseline via console (ex: desligando trilhas de auditoria, abrindo portas de rede de forma insegura), quebrando a conformidade da infraestrutura estabelecida pelo baseline Terraform (ADR-005) de forma silenciosa.
-2. **Contas Inativas/Descomissionamento:** Projetos de software chegam ao fim, e as contas correspondentes permanecem ativas na AWS/GCP gerando custos recorrentes e riscos de segurança desnecessários (contas zumbis). É necessário possuir um fluxo estruturado e seguro de encerramento de atividades e destruição lógica dessas contas.
+As contas Cloud criadas pelo `cloud-manager` (CAPE) passam por um processo estruturado de criação, tornando-se `ACTIVE` após a aplicação bem-sucedida do baseline via pipeline do repositório IaC da conta. No entanto, o ciclo de vida não termina no provisionamento. É necessário monitorar desvios de configuração física em relação ao template de baseline (Drift) e prover um fluxo seguro e automatizado para o encerramento definitivo (Offboarding) das contas filhas, respeitando a separação de responsabilidades (ADR-005).
 
 ## Comparação com ADRs Existentes
-A ADR-002 define a máquina de estados do provisionamento inicial (`CREATED` -> `IN_PROVISIONING` -> `BILLING_LINKED` -> `ACTIVE`). No entanto, a máquina de estados está incompleta se não contemplar as transições de fim de vida (offboarding de contas) e as validações de integridade contra desvios manuais (Drift). Esta ADR expande a máquina de estados e define a lógica de auditoria contínua de infraestrutura e descomissionamento seguro.
+A ADR-002 define a máquina de estados inicial (`CREATED` -> `IN_PROVISIONING` -> `BILLING_LINKED` -> `ACTIVE`). Esta ADR estende a máquina de estados do CAPE para abranger os fluxos de pós-ativação (auditoria de drift contínuo e destruição/offboarding seguro), especificando como as ações são coordenadas entre o CAPE, os repositórios de IaC de cada conta e o **IAC engine**.
 
 ## Opções Consideradas
 
-### Opção A: Exclusão Manual das Contas por Operadores de Infraestrutura (Abordagem Humana)
-- **Descrição:** Quando uma conta não é mais necessária, o dono abre um chamado e um operador de CloudOps manualmente apaga os recursos e encerra a conta no console dos provedores. A detecção de drift também depende de varreduras humanas ocasionais ou relatórios esporádicos.
+### Opção A: Detecção de Drift e Destruição de Recursos Executados de Forma Nativa no CAPE
+- **Descrição:** O CAPE realizaria varreduras periódicas de rede e de recursos chamando as APIs de nuvem diretamente de seu código Java para identificar desvios. Para a exclusão, o CAPE executaria códigos Java destrutivos na conta filha.
 - **Prós:**
-  - Menor complexidade de automação de destruição no backend do CAPE.
-  - Controle e validação humana visual antes de deletar qualquer dado.
+  - Lógica centralizada de controle e destruição.
 - **Contras:**
-  - Extremamente lento, ineficiente e propenso a erros (recursos residuais caros podem ficar esquecidos na conta filha desativada).
-  - Incapacidade de reagir em tempo hábil a desvios críticos de configuração (drifts), abrindo vulnerabilidades de postura por dias ou semanas.
+  - Alto risco operacional: qualquer bug no core Java do CAPE poderia apagar dados indevidamente em contas produtivas.
+  - Mistura de responsabilidades: o CAPE não foi desenhado para calcular planos físicos de diferença de infraestrutura (tarefa do Terraform/OpenTofu) e nem deve reter credenciais diretas de alteração de recursos físicos.
 
-### Opção B: Extensão da Máquina de Estados (Estados SUSPENDED/TERMINATING) com Execução Contínua de Drift-Detection via IaC
-- **Descrição:**
-  1. **Detecção Contínua de Drift:** O `cloud-manager` agenda execuções periódicas do tipo `terraform plan` (no modo read-only/audit) contra o baseline correspondente (ADR-005) de cada conta `ACTIVE`. Se o plano indicar desvio em relação ao baseline configurado, a conta é marcada com flag de `DRIFTED` e alertas são enviados ao time responsável, permitindo re-aplicação automática do Terraform para reverter as alterações manuais (reconciliação de estado).
-  2. **Ciclo de Vida de Encerramento (Offboarding):** Adicionar novos estados na máquina de estados da conta: `SUSPENDED` (recursos bloqueados temporariamente) e `TERMINATING` (destruição automatizada de dados e exclusão/arquivamento físico da conta filha via API Organizations CloseAccount ou GCP DeleteProject).
+### Opção B: Verificações de Drift e Destruição Coordenadas pelas Pipelines de IaC via IAC Engine
+- **Descrição:** Transferir as atividades pesadas de infraestrutura de pós-onboarding para o ecossistema de IaC descentralizado:
+  1. **Detecção de Drift:** O `cloud-manager` agenda e aciona rotinas periódicas (via webhook de agendamento ou cron corporativo) que iniciam uma tarefa de auditoria no pipeline do repositório de IaC da conta (ADR-005). Esse pipeline roda um plano de leitura do estado (`terraform plan` read-only) utilizando o **IAC engine**. Em caso de desvio em relação ao baseline do template, o pipeline notifica o CAPE que sinaliza a conta como `DRIFTED` no Dashboard (ADR-004).
+  2. **Ciclo de Offboarding:** Adicionar os estados `SUSPENDED` e `TERMINATING` na máquina de estados lógica do CAPE. No estado `TERMINATING`, o CAPE altera o status lógico no repositório da conta filha e aciona a pipeline de destruição do próprio repositório. O **IAC engine** executa a destruição dos recursos físicos em conformidade com o código IaC. Após o sucesso da limpeza física de recursos, o CAPE remove o repositório Git correspondente e encerra fisicamente a conta filha na AWS/GCP (via API Organizations CloseAccount ou GCP DeleteProject).
 - **Prós:**
-  - Governança total e automatizada de ponta a ponta (Full Lifecycle Automation).
-  - Garantia de que a infraestrutura real reflete fielmente o código de infraestrutura como código (IaC), blindando a conta contra modificações manuais indevidas.
-  - Eliminação de custos ocultos com contas inativas ou esquecidas.
+  - **Segurança Absoluta:** O CAPE coordena o fluxo de estados de negócios, enquanto as tarefas de modificação e destruição de infraestrutura rodam no contexto auditável e de menor privilégio do pipeline de IaC executado pelo IAC engine.
+  - **Auditabilidade Extrema:** Cada execução de drift e plano de destruição gera logs completos e registros de histórico na esteira de CI/CD do repositório IaC correspondente.
 - **Contras:**
-  - A automação de destruição de contas é crítica e perigosa (risco de deletar dados produtivos valiosos por erro de parâmetro).
-  - Exige rotinas severas de auditoria pré-destruição e aprovação de múltiplos gestores (MFA de aprovação).
+  - Requer maior fluxo de transições de status assíncronas entre o CAPE e os pipelines dos repositórios.
 
 ## Decisão Escolhida
-Aprovamos a **Opção B: Extensão da Máquina de Estados (Estados SUSPENDED/TERMINATING) com Execução Contínua de Drift-Detection via IaC**.
-A máquina de estados lógica do `cloud-manager` passará a aceitar as seguintes transições adicionais:
-- `ACTIVE` $\rightarrow$ `SUSPENDED`: Desativação temporária que suspende direitos de escrita, congela faturamento de serviços auxiliares, mas preserva os dados de forma recuperável.
-- `SUSPENDED` $\rightarrow$ `TERMINATING`: Processo destrutivo que dispara pipelines automáticas para apagar os recursos de dados locais (usando ferramentas de limpeza como `aws-nuke` ou rotinas customizadas do baseline) e encerra fisicamente o projeto/conta usando APIs nativas (`Organizations.CloseAccount` / `ResourceManager.Projects.Delete`). Uma conta nesse estado não pode retornar e é marcada como `TERMINATED` ao fim.
-Adicionalmente, um cron executor interno no CAPE disparará tarefas semanais de verificação de drift via motor de IaC (ADR-005) para todas as contas em estado `ACTIVE`, reportando e alertando imediatamente desvios no Dashboard unificado (ADR-004).
+Aprovamos a **Opção B: Verificações de Drift e Destruição Coordenadas pelas Pipelines de IaC via IAC Engine**.
+A máquina de estados lógica do `cloud-manager` passa a englobar os estados de pós-ativação de forma integrada. O monitoramento contínuo de Drift será disparado através de execuções automatizadas e agendadas na esteira de CI/CD do repositório IaC de cada conta filha, que delega o cálculo das diferenças ao **IAC engine**.
+Para o processo de descarte de contas (Offboarding), o CAPE moverá a conta para `SUSPENDED` (quarentena lógica de 30 dias com bloqueio de novos deploys). Findada a quarentena, o CAPE transita a conta para `TERMINATING` e invoca a pipeline de destruição (`terraform destroy`) no repositório de IaC correspondente, processado pelo **IAC engine**. Somente após a confirmação do sucesso da deleção de todos os recursos pelo pipeline, o CAPE realiza a deleção do repositório Git e o fechamento administrativo da conta filha.
 
 ## Consequências
 - **Positivas:**
-  - Redução drástica da superfície de ataque corporativa eliminando contas inativas.
-  - Garantia de imutabilidade e integridade das políticas de segurança base.
-  - Economia financeira substancial por meio de desalocação automática de recursos ociosos desnecessários.
+  - Redução drástica da superfície de ataque operacional.
+  - O core lógico do CAPE permanece isolado e seguro de lógicas físicas destrutivas de recursos.
+  - Rastreabilidade de modificações manuais (Drifts) integrada ao GitOps.
 - **Negativas/Riscos:**
-  - Risco catastrófico de destruição acidental de contas legítimas devido a bugs de lógica ou comandos indevidos.
+  - O fluxo de exclusão requer múltiplos webhooks e retornos estáveis de pipelines para confirmar a finalização segura de cada etapa.
 - **Plano de Mitigação:**
-  - Exigir aprovação manual em "duas mãos" (Quorum de Aprovação por pelo menos 2 Administradores de Cloud de áreas distintas) no Dashboard antes que qualquer conta avance para o estado `TERMINATING`.
-  - Contas marcadas para destruição devem permanecer em estado de quarentena/retenção (`SUSPENDED`) por no mínimo 30 dias antes do processamento definitivo das rotinas de destruição física.
+  - Exigir "Quorum de Aprovação" (MFA / aprovação conjunta de dois diretores de Cloud) na UI do `cloud-manager` para habilitar a transição de `SUSPENDED` para `TERMINATING` de qualquer conta filha.
+  - Implementar verificação de recursos vazios ("zero resources audit") antes do fechamento administrativo final do provedor de nuvem.

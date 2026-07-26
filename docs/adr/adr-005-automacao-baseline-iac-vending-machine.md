@@ -1,4 +1,4 @@
-# ADR-005: Orquestração de Baseline de Infraestrutura via Terraform/OpenTofu e Vending Machine
+# ADR-005: Orquestração de Baseline de Infraestrutura via Repositório de IaC Templatizado e IAC Engine Externo
 
 - **Status:** Proposto
 - **Data:** 2026-07-26
@@ -6,46 +6,46 @@
 - **Relacionado a:** ADR-002, ADR-003
 
 ## Contexto e Problema
-Após o provisionamento básico de uma conta Cloud (AWS Account ou GCP Project) e a devida vinculação de faturamento (Billing), a conta recém-criada encontra-se vazia, sem recursos essenciais de segurança, redes locais ou permissões base instaladas. Para que uma conta seja declarada como `ACTIVE` com segurança e conformidade, é preciso aplicar um conjunto de baselines de infraestrutura como código (IaC), configurando roles de IAM, políticas locais, buckets de auditoria e conexões de rede padrão de forma automatizada e idempotente no fluxo do `cloud-manager` (CAPE).
+Após o provisionamento básico de uma conta Cloud (AWS Account ou GCP Project) e a devida vinculação de faturamento (Billing), a conta recém-criada precisa receber o baseline de infraestrutura de rede, segurança e políticas para ser considerada `ACTIVE` com segurança. No entanto, o `cloud-manager` (CAPE) deve seguir o princípio de responsabilidade única (Single Responsibility Principle) e desacoplamento operacional. O CAPE não deve ser responsável por gerenciar diretamente a execução de planos físicos de infraestrutura como código (IaC), nem conter lógicas complexas de compiladores ou runners do Terraform em seu próprio microsserviço.
 
 ## Comparação com ADRs Existentes
-Embora a ADR-002 defina a máquina de estados baseada em eventos e a ADR-003 exija a vinculação à conta Seed, o projeto ainda não documentava como o baseline de infraestrutura (recursos reais) seria instanciado e aplicado dentro do ciclo de vida assíncrono do CAPE. Esta ADR especifica a escolha da engine de IaC e como o mecanismo de Vending Machine será disparado para orquestrar os templates de baseline.
+Embora a ADR-002 defina a máquina de estados baseada em eventos e a ADR-003 exija a vinculação à conta Seed, havia a necessidade de delimitar com exatidão onde se inicia e onde termina o papel do `cloud-manager` no ecossistema de infraestrutura. Esta ADR define a separação estrita de responsabilidades entre o `cloud-manager`, um repositório git templatizado de IaC individual de cada conta, e um projeto externo especializado chamado **IAC engine**.
 
 ## Opções Consideradas
 
-### Opção A: Provisionamento Direto via SDKs Nativos (AWS Java SDK & GCP Cloud Client)
-- **Descrição:** Usar código Java puro para chamar diretamente as APIs de criação de recursos (IAM, S3, KMS) via SDK oficial do respectivo provedor de nuvem.
+### Opção A: Provisionamento Direto e Execução de Terraform de Dentro do CAPE
+- **Descrição:** O `cloud-manager` seria responsável por rodar o executável do Terraform/OpenTofu localmente ou via bibliotecas Java, gerenciando os arquivos de estado `.tfstate` diretamente em seu banco de dados ou buckets centrais.
 - **Prós:**
-  - Evita ferramentas externas ou dependência de binários extras no container do `cloud-manager`.
-  - Controle granular e síncrono dos fluxos de erro em Java.
+  - Todo o fluxo de provisionamento está em uma única ferramenta central.
 - **Contras:**
-  - Complexidade extrema na manutenção e evolução de baselines complexos de infraestrutura.
-  - Ausência de mecanismo nativo de gerenciamento de estado (State) e detecção de drift para os recursos do baseline.
-  - Viola o princípio de desacoplamento, exigindo reescrita de lógica complexa para cada novo recurso adicionado ao baseline de diferentes nuvens.
+  - Forte acoplamento técnico: qualquer erro de execução de IaC ou gargalo de concorrência afetaria a estabilidade do orquestrador Java principal.
+  - Sobrecarga de responsabilidades no core de domínio do CAPE.
+  - Dificulta a auditoria e alteração de códigos Terraform de forma independente pelas equipes de Cloud/Plataforma.
 
-### Opção B: Orquestração Baseada em Terraform/OpenTofu com Runner Assíncrono (Self-Hosted ou Terraform Cloud)
-- **Descrição:** O `cloud-manager` atua como um coordenador que invoca execuções do Terraform/OpenTofu de forma assíncrona. Os templates de baseline são mantidos em repositórios Git dedicados. O CAPE consome mensagens de fila e dispara uma pipeline CI/CD (ex: GitHub Actions, GitLab CI) ou um runner local em container (via Terraform Worker/Kubernetes Pod) para executar o `terraform apply` com os parâmetros específicos da conta filha criada.
+### Opção B: Separação de Responsabilidades com Repositórios Git de IaC Dedicados e IAC Engine Independente
+- **Descrição:** Dividir o fluxo de trabalho de forma clara e especializada:
+  1. **Responsabilidade do `cloud-manager` (CAPE):** Criar a conta Cloud física no provedor, instalar os mecanismos Seed de faturamento/governança, solicitar as faixas de rede (IPAM) e **criar um novo repositório Git dedicado para o código IaC daquela conta específica**, instanciado a partir de um template corporativo padronizado.
+  2. **Responsabilidade do IAC Engine:** Um microsserviço especializado e independente que processa execuções de Terraform/OpenTofu.
+  3. **Responsabilidade da Pipeline do Repositório de IaC:** Toda a gestão de ciclo de vida, testes, validação de políticas (Lint/OPA) e aplicação física dos recursos do baseline da conta é acionada via esteira de CI/CD integrada à pipeline do próprio repositório Git recém-criado, que delega o processamento pesado do Terraform ao **IAC engine**.
 - **Prós:**
-  - Utiliza o padrão de mercado mais robusto e consolidado para IaC (Terraform/OpenTofu).
-  - Separação clara de responsabilidades: o `cloud-manager` gerencia o ciclo de vida e estado lógico da conta, enquanto o Terraform/OpenTofu gerencia o estado físico dos recursos de infraestrutura.
-  - Reutilização de módulos de IaC já validados e desenvolvidos pelas equipes de Cloud/Platform Engineering.
+  - **Separação Limpa de Responsabilidades:** O CAPE gerencia o ciclo lógico de vida da conta (onboarding, offboarding e metadados), enquanto o repositório IaC templatizado gerencia a declaração física dos recursos da conta, e o IAC engine executa a infraestrutura.
+  - **GitOps Nativo:** Mudanças futuras na infraestrutura da conta filha são feitas via Pull Requests no repositório IaC correspondente, gerando histórico e auditoria nativos por Git.
+  - **Desacoplamento de Runtime:** O `cloud-manager` não precisa lidar com estados físicos de infraestrutura (como bloqueios de state do Terraform) em tempo de execução de negócio.
 - **Contras:**
-  - Introduz complexidade operacional e dependência de um motor de execução externo (pipeline de CI/CD ou runner local).
-  - Requer um mecanismo centralizado e seguro para armazenar o `terraform.tfstate` de cada conta filha de forma isolada (ex: buckets S3/GCS individuais com chaves KMS dedicadas).
+  - Requer o provisionamento automatizado de repositórios Git (via APIs do GitHub, GitLab ou similar) durante a criação da conta.
 
 ## Decisão Escolhida
-Aprovamos a **Opção B: Orquestração Baseada em Terraform/OpenTofu com Runner Assíncrono**.
-O `cloud-manager` (CAPE), no estado `IN_PROVISIONING`, gerará um payload contendo as variáveis específicas da nova conta filha (ID da conta, Região principal, tags globais, etc.) e disparará uma requisição assíncrona (via webhook ou mensagem SQS/PubSub) para um runner de IaC orquestrado (ex: Terraform Cloud, GitLab CI, ou um pod executor Kubernetes do próprio CAPE).
-O runner aplicará os módulos Terraform/OpenTofu correspondentes ao baseline corporativo aprovado e, ao concluir, notificará de volta o CAPE via webhook ou fila, permitindo que a conta avance para o estado `BILLING_LINKED` e posteriormente `ACTIVE`. O arquivo de estado do Terraform (`.tfstate`) será obrigatoriamente persistido de forma segura em um bucket de infraestrutura de gerenciamento protegido, usando criptografia KMS e controle de concorrência por DynamoDB/Firestore.
+Aprovamos a **Opção B: Separação de Responsabilidades com Repositórios Git de IaC Dedicados e IAC Engine Independente**.
+No estado `IN_PROVISIONING`, o `cloud-manager` realizará as chamadas de API necessárias para instanciar a conta e conectar os mecanismos Seed. Em seguida, chamará a API da ferramenta de Git corporativa para **gerar um novo repositório Git exclusivo para aquela conta**, clonando as pastas de código de baseline a partir de um template homologado.
+A partir daí, a pipeline de CI/CD deste repositório assume o controle: ela dispara o processamento dos recursos utilizando o microsserviço externo **IAC engine**. Ao final do deploy com sucesso, a pipeline notifica o `cloud-manager` via webhook, permitindo que o estado da conta avance para `BILLING_LINKED` e finalmente `ACTIVE`.
 
 ## Consequências
 - **Positivas:**
-  - Declaração de infraestrutura padronizada e limpa usando HCL.
-  - Desacoplamento total do código Java do `cloud-manager` da lógica pesada de IaC.
-  - Facilidade de atualização de baselines de segurança (basta alterar o repositório git do módulo Terraform do baseline, sem necessidade de redeploy do backend Java do CAPE).
+  - Arquitetura extremamente escalável, resiliente e alinhada às práticas modernas de GitOps e Platform Engineering.
+  - Alterações e atualizações na infraestrutura da conta filha podem ser executadas pelas equipes via PRs simples no repositório de IaC da conta, sem necessidade de tocar ou redeployar o `cloud-manager`.
+  - O core do `cloud-manager` mantém-se focado estritamente na lógica pura de domínio e governança de contas Cloud.
 - **Negativas/Riscos:**
-  - Complexidade de integração e necessidade de gerenciamento de webhooks de retorno para notificar o CAPE do sucesso/falha do `terraform apply`.
-  - Aumento do tempo total de provisionamento da conta, uma vez que a execução do Terraform pode levar de 3 a 10 minutos.
+  - Dependência de APIs de provedores de Git para a criação dinâmica de repositórios e configuração de Webhooks de sincronização de estado.
 - **Plano de Mitigação:**
-  - Configuração de timeouts generosos no fluxo de mensagens SQS (Dead Letter Queue - DLQ ativa) e resiliência via reprocessamento automático em caso de falha de rede temporária do runner de IaC.
-  - Implementação de um BFF/Dashboard (conforme ADR-004) capaz de reportar o log em tempo real das etapas de execução do Terraform para o operador da plataforma.
+  - Implementar mecanismos de Retry robustos na integração com APIs de Git (como GitHub/GitLab).
+  - Centralizar os templates de repositório de IaC de modo que qualquer alteração de baseline possa ser propagada via Pull Requests em lote automáticos para os repositórios das contas filhas.

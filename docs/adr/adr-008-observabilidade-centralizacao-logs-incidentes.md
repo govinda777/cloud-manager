@@ -6,47 +6,41 @@
 - **Relacionado a:** ADR-001, ADR-005
 
 ## Contexto e Problema
-Com o crescimento acelerado de contas e projetos sendo provisionados de forma autônoma pelo `cloud-manager` (CAPE), torna-se imperativo possuir uma estratégia unificada de observabilidade e centralização de logs. A ausência de logs centralizados impede a depuração eficiente de falhas em microsserviços do próprio orquestrador, dificulta a identificação de incidentes de segurança (ex: quem realizou uma ação suspeita em qual conta filha) e viola exigências de conformidade regulatória (como a LGPD e PCI-DSS), que demandam trilhas de auditoria imutáveis.
+Com o crescimento acelerado de contas e projetos sendo provisionados de forma autônoma pelo `cloud-manager` (CAPE), torna-se imperativo possuir uma estratégia unificada de observabilidade e centralização de logs. Seguindo o padrão de separação de responsabilidades (ADR-005), os logs gerados pelas ferramentas de infraestrutura física de cada conta e pelo orquestrador Java devem ser coletados e tratados de forma independente, auditável e imutável.
 
 ## Comparação com ADRs Existentes
-Embora a ADR-001 defina a pureza do domínio em Java, a ADR-002 utilize fila SQS e a ADR-004 exija um painel de gerenciamento no Dashboard, o ecossistema carece de diretrizes específicas sobre o ciclo de vida e centralização de logs e telemetria gerados tanto pelo orquestrador Java quanto pela infraestrutura de baselines e eventos de nuvem. Esta ADR cobre essas necessidades de observabilidade e auditoria.
+Embora a ADR-001 defina a pureza do domínio em Java, a ADR-002 utilize fila SQS e a ADR-004 exija um painel de gerenciamento no Dashboard, o ecossistema carece de diretrizes específicas sobre onde e como as definições de infraestrutura de roteamento de logs de auditoria das contas filhas são provisionadas e estruturadas. Esta ADR aborda essa arquitetura.
 
 ## Opções Consideradas
 
-### Opção A: Armazenamento e Consulta de Logs Locais nos Provedores de Origem (Abordagem Descentralizada)
-- **Descrição:** Manter os logs de aplicação do `cloud-manager` no container/cluster de deploy e instruir os times a consultarem logs de infraestrutura diretamente na console de cada provedor (AWS CloudTrail na AWS e GCP Cloud Logging no GCP) de forma isolada.
+### Opção A: Provisionamento Direto de Buckets de Log pelo CAPE
+- **Descrição:** O CAPE criaria ativamente os recursos e buckets de logs nas contas filhas utilizando SDKs do provedor de nuvem em Java, gerenciando as conexões em tempo de execução.
 - **Prós:**
-  - Zero custo de armazenamento centralizado.
-  - Simplicidade inicial, pois não requer infraestrutura extra de agregação de logs.
+  - Configuração direta e controlada de forma centralizada pelo backend do CAPE.
 - **Contras:**
-  - Ineficiente para depuração rápida e impossibilita correlação de eventos multicloud.
-  - Violações de segurança e exclusões intencionais de logs por administradores mal-intencionados nas contas filhas não poderiam ser detectadas a tempo.
-  - Dificulta drasticamente auditorias centralizadas de segurança.
+  - Violaria a separação de responsabilidades definida na ADR-005, inflando o CAPE com lógicas de infraestrutura complexas específicas de cada provedor de nuvem.
 
-### Opção B: Centralização via OpenTelemetry para Aplicações e Roteamento de Logs de Nuvem para um Data Lake de Segurança (SIEM/Audit Bucket)
-- **Descrição:** Adotar um padrão em duas frentes de observabilidade:
-  1. **Telemetria e Aplicação (cloud-manager):** Instrumentar o backend Java do CAPE de forma agnóstica de fornecedor usando a API do OpenTelemetry (tráfego de logs, métricas e traces estruturados), exportando dados para ferramentas APM (como Jaeger, Datadog ou Prometheus/Grafana).
-  2. **Logs de Infraestrutura e Auditoria (CloudTrail e GCP Audit):** No baseline das contas filhas (ADR-005), configurar rotinas automatizadas para exportar logs de atividades (CloudTrail na AWS, Audit Logs no GCP) para tópicos de mensageria locais e roteá-los de volta para um bucket centralizado do time de segurança em uma conta dedicada (Audit/Log Account), que serve como fonte imutável e integrada a uma ferramenta de SIEM.
+### Opção B: Provisionamento de Roteamento de Logs via Template de Repositório IaC e IAC Engine
+- **Descrição:** Toda a infraestrutura física de auditoria e telemetria local da conta filha é declarada no template de seu próprio repositório de IaC (ADR-005) e aplicada pelo **IAC engine**:
+  1. O template de IaC da conta filha declara nativamente a ativação de ferramentas de trilha de auditoria (AWS CloudTrail / GCP Audit Logs) e configura os destinos para os buckets centrais de auditoria segura corporativa.
+  2. O **IAC engine** aplica essas configurações na pipeline do repositório da conta filha.
+  3. A telemetria da aplicação principal do `cloud-manager` (CAPE) é enviada de forma independente via OpenTelemetry para APMs agnósticos.
 - **Prós:**
-  - Conformidade estrita com padrões regulatórios de segurança e auditoria (WORM - Write Once, Read Many).
-  - Agnóstico de vendor no backend Java devido ao uso de OpenTelemetry, respeitando o princípio de isolamento da arquitetura hexagonal.
-  - Correlação unificada de traces e logs para depuração de problemas de provisionamento assíncrono.
+  - Estrita aderência ao modelo de responsabilidades (ADR-005): o CAPE não gerencia recursos físicos de infraestrutura de log, apenas cria o repositório da conta a partir do template pré-configurado.
+  - O código do baseline de logs pode ser atualizado de forma independente do `cloud-manager` no repositório de templates corporativos.
 - **Contras:**
-  - Custos adicionais de transferência de dados e armazenamento a longo prazo para logs brutos de auditoria.
-  - Maior complexidade para configurar o roteamento seguro e seguro inter-contas de logs de auditoria.
+  - Qualquer desvio ou falha de provisionamento da infraestrutura de logs deve ser tratado e reportado pela esteira de CI/CD do repositório de IaC.
 
 ## Decisão Escolhida
-Aprovamos a **Opção B: Centralização via OpenTelemetry para Aplicações e Roteamento de Logs de Nuvem para um Data Lake de Segurança (SIEM/Audit Bucket)**.
-A aplicação Java do `cloud-manager` utilizará o agente do OpenTelemetry de forma desacoplada do código de domínio (via injeção de dependências e configuração externa de runtime), enviando traces e logs estruturados em JSON para o coletor corporativo.
-As contas filhas nascerão com o AWS CloudTrail / GCP Audit Logs habilitados via baseline Terraform (ADR-005) e configurados para publicar em buckets centralizados S3/GCS localizados na conta centralizadora de auditoria (`security-audit-account`). O acesso a esses buckets será altamente restritivo e os logs serão guardados por no mínimo 1 ano em formato imutável (habilitando Object Lock).
+Aprovamos a **Opção B: Provisionamento de Roteamento de Logs via Template de Repositório IaC e IAC Engine**.
+A infraestrutura de captação e envio de logs de auditoria (AWS CloudTrail / GCP Audit Logs) de cada conta filha será obrigatoriamente incluída no template de repositório de IaC padrão. No momento em que a pipeline do repositório de IaC da conta filha é executada pelo **IAC engine**, esses recursos de segurança são criados e travados na nuvem correspondente.
+Os logs de auditoria e segurança serão roteados para buckets corporativos imutáveis e protegidos na conta de auditoria central (`security-audit-account`). A telemetria da aplicação do `cloud-manager` (CAPE) será coletada via instrumentação externa do OpenTelemetry e enviada para coletores centrais.
 
 ## Consequências
 - **Positivas:**
-  - Rastreabilidade total de todas as ações executadas tanto no `cloud-manager` quanto diretamente nos consoles das nuvens públicas.
-  - Facilidade de diagnóstico e redução drástica do tempo médio de reparo (MTTR) de bugs de orquestração.
-  - Compliance imediata para auditorias de conformidade regulatória.
+  - Separação completa de responsabilidades no ciclo de observabilidade.
+  - Facilidade de manutenção de baselines de segurança de logs via GitOps no template do repositório de IaC.
 - **Negativas/Riscos:**
-  - Aumento nos custos de computação e armazenamento devido ao volume expressivo de logs gerados pelas atividades corporativas diárias nas nuvens.
+  - Mudanças nas especificações técnicas de logs de auditoria exigem atualização do repositório de templates IaC corporativo.
 - **Plano de Mitigação:**
-  - Aplicar políticas rígidas de ciclo de vida de armazenamento (Lifecycle Policies) nos buckets centrais de logs, movendo-os de classes de armazenamento quente para classes frias e ultra-frias (como S3 Glacier Flexible Retrieval / GCP Archive) após 30 dias de criação.
-  - Implementar filtros e regras de exclusão no baseline para logs não-críticos de auditoria de desenvolvimento, mantendo apenas informações cruciais de segurança.
+  - Utilizar versionamento semântico para os templates de repositórios de IaC, permitindo que as contas filhas atualizem seus baselines de logs via branches e PRs automáticos.
