@@ -41,7 +41,7 @@ O projeto adota o design de arquitetura hexagonal baseado no repositório `govin
 ### Princípios do Design
 1. **Isolamento de Domínio (`business`)**: O núcleo da aplicação é escrito estritamente em **Java Puro**, livre de dependências externas como annotations de frameworks (Spring, Jackson, JPA/Hibernate, SDKs AWS ou GCP).
 2. **Injeção de Dependência Programática**: Todos os Beans de Casos de Uso do Spring são declarados programaticamente em `UseCaseConfig.java` na camada de infraestrutura.
-3. **Máquina de Estados e Resiliência**: O ciclo de vida de uma conta é controlado assincronamente por meio de uma máquina de estados robusta guiada por eventos (via AWS SQS).
+3. **Máquina de Estados e Resiliência**: O ciclo de vida de uma conta é controlado assincronamente por meio de uma máquina de estados robusta guiada por eventos (via AWS SQS emulado com ElasticMQ localmente).
 
 ---
 
@@ -94,13 +94,13 @@ Para aprofundar-se nas especificações técnicas e decisões que moldaram este 
 ### Pré-requisitos
 - **Java 21**
 - **Docker** e **Docker Compose**
-- **Maven** (ou wrapper embarcado `./mvnw`)
+- **Maven** (ou wrapper embutido `./mvnw`)
 
 ### Setup do Ambiente Local
-A infraestrutura local é orquestrada via Docker Compose, que disponibiliza o banco PostgreSQL e o LocalStack (simulando o AWS SQS):
+A infraestrutura local é orquestrada via Docker Compose, que disponibiliza o banco PostgreSQL e uma instância do **ElasticMQ** (servidor compatível com AWS SQS que substitui o LocalStack de forma muito mais leve e robusta):
 
 ```bash
-# Iniciar dependências locais (Banco de Dados e SQS local)
+# Iniciar dependências locais (Banco de Dados e ElasticMQ para SQS local)
 docker-compose up -d
 ```
 

@@ -11,8 +11,8 @@ Siga rigorosamente a arquitetura do repositório 'govinda777/hexagonal-event-dri
 1. ISOLAMENTO DO DOMÍNIO (business):
    - O pacote 'business' deve ser JAVA PURO, sem dependências de frameworks (sem Spring, Jackson, AWS SDK, GCP SDK, JPA).
    - Sem herança de classes; use composição e interfaces em 'gateway'.
-   - O fluxo é orquestrado via State Machine e acionado por eventos de fila (SQS/LocalStack).
-   - Registre Beans do Spring programaticamente in 'UseCaseConfig.java' na infraestrutura, sem anotações de DI no núcleo funcional.
+   - O fluxo é orquestrado via State Machine e acionado por eventos de fila (AWS SQS via ElasticMQ local).
+   - Registre Beans do Spring programaticamente em 'UseCaseConfig.java' na infraestrutura, sem anotações de DI no núcleo funcional.
 
 2. DOMÍNIO E NÚCLEO DE NEGÓCIO:
    - Contas Seed (Root Billing Accounts): AWS Management Account e GCP Billing Account/Organization Root.
@@ -20,7 +20,7 @@ Siga rigorosamente a arquitetura do repositório 'govinda777/hexagonal-event-dri
    - Estados da Conta (AccountState): CREATED, IN_PROVISIONING, BILLING_LINKED, ACTIVE, FAILED.
 
 3. INFRAESTRUTURA E MENSAGERIA LOCAL:
-   - Forneça um setup funcional via 'docker-compose.yml' contendo LocalStack (para AWS SQS) e Local GCP Pub/Sub / Mocks.
+   - Forneça um setup funcional via 'docker-compose.yml' contendo banco PostgreSQL local e ElasticMQ (para simulação de AWS SQS).
    - Forneça Dockerfile multi-stage funcional para Java 21.
 
 Gere a estrutura de pacotes, os DTOs, Entidades de Domínio, Casos de Uso (CreateAccountUseCase, ProcessAccountProvisioningUseCase) e Mapeadores.

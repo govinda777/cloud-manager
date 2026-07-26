@@ -72,5 +72,5 @@ O projeto adotará a arquitetura do repositório `govinda777/hexagonal-event-dri
 ```
 
 ## 5. Ambiente Local e Ferramental
-* **Docker Compose**: Sobe o app Java 21, banco PostgreSQL local e LocalStack para simulação local do AWS SQS e S3.
+* **Docker Compose**: Sobe o app Java 21, banco PostgreSQL local e ElasticMQ para simulação local do AWS SQS.
 * **Testes**: Suíte Cucumber (BDD) + JUnit 5 para garantir a transição de estados da máquina.
