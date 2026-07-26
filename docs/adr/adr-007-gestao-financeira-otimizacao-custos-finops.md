@@ -1,4 +1,4 @@
-# ADR-007: Gestão Financeira, Alertas Orçamentários e Ações de Contenção de Custos (FinOps)
+# ADR-007: Gestão Financeira, Alertas Orçamentários e Contenção Baseada em Controles Semente Preexistentes (FinOps)
 
 - **Status:** Proposto
 - **Data:** 2026-07-26
@@ -6,42 +6,52 @@
 - **Relacionado a:** ADR-003, ADR-004, ADR-005
 
 ## Contexto e Problema
-O faturamento centralizado de contas filhas por meio de contas Seed (conforme decidido na ADR-003) resolve a dependência de billing, mas expõe a organização ao risco de "explosão" de custos não planejados. Para mitigar esse risco de forma ágil, as ações de controle orçamentário e aplicação de limites financeiros devem ser integradas ao ecossistema respeitando o design de separação de responsabilidades (ADR-005).
+O faturamento centralizado de contas filhas através de uma conta Seed (ADR-003) resolve o vínculo comercial e fiscal, mas expõe a organização ao risco de gastos descontrolados ou loops de criação de recursos em contas de desenvolvimento. O provisionamento e monitoramento individualizado de orçamentos (budgets) via código Terraform na própria conta filha possui sérias limitações:
+1. Requer complexidade de deploy de IaC local para criar Budgets específicos para cada nova conta.
+2. Pode ser facilmente contornado ou deletado por administradores locais da conta filha via console.
+3. Não aproveita o potencial de controle centralizado e consolidado que as contas mãe/Seed já oferecem nativamente nas nuvens (como AWS Organizations e GCP Billing Accounts).
+
+Precisamos de uma arquitetura de FinOps robusta, integrada nativamente ao mecanismo Seed, sem depender de declaração de recursos via Terraform para cada subconta.
 
 ## Comparação com ADRs Existentes
-A ADR-003 garante o vínculo fiscal automático e a ADR-004 estabelece a exigência de um painel visual de FinOps com alertas e rateio de custos. No entanto, o sistema precisa de uma decisão de arquitetura sobre onde e como as restrições e orçamentos físicos de cada conta são aplicados, garantindo isolamento de responsabilidade em relação ao core lógico do CAPE.
+A ADR-003 garante o faturamento herdado de contas Seed, e a ADR-004 prevê um painel visual de custos no Dashboard. No entanto, o sistema carecia de definições de arquitetura sobre onde reside o monitoramento ativo e os alertas financeiros. Esta ADR redefine a mecânica: em vez de criar regras locais via Terraform, o controle financeiro utiliza **mecanismos semente preexistentes** estruturados na conta raiz.
 
 ## Opções Consideradas
 
-### Opção A: Execução e Controle de Scripts de Desligamento de Recursos pelo Core do CAPE
-- **Descrição:** O CAPE conteria rotinas internas que se autenticam em cada conta filha ativada e varrem instâncias ativas para deletá-las ou desligá-las caso o orçamento estoure.
+### Opção A: Declaração e Provisionamento de Recursos de Faturamento via Código Terraform Local
+- **Descrição:** Cada conta filha declara e provisiona seus próprios Budgets, alarmes CloudWatch e tópicos SNS locais através de código de infraestrutura como código (IaC).
 - **Prós:**
-  - Lógica de contenção de custos implementada no próprio backend Java.
+  - Descentralização, permitindo que cada time configure limites conforme desejado no repositório.
 - **Contras:**
-  - Alto acoplamento técnico de APIs de nuvem destrutivas no CAPE.
-  - Mistura regras de governança global com regras específicas de infraestrutura de recursos de nuvem, violando a ADR-005.
+  - Alto risco de exclusão indevida ou alteração manual por usuários com privilégios locais.
+  - Excesso de código duplicado e retrabalho para configurar alertas repetitivos em cada repositório de conta filha.
+  - Fraca governança: o time financeiro central perde a capacidade de consolidar e centralizar as regras de bloqueio.
 
-### Opção B: Provisionamento de Budgets no Repositório IaC da Conta e Contenção via Pipelines e Mecanismos Seed
-- **Descrição:** O `cloud-manager` (CAPE) registra os limites de orçamento no banco de dados corporativo e passa essas definições como variáveis para o repositório de IaC da conta (ADR-005).
-  1. A pipeline do repositório da conta (via **IAC engine**) provisiona nativamente as estruturas de controle de faturamento (AWS Budgets / GCP Budgets) integradas ao ecossistema de infraestrutura.
-  2. Quando ocorrem estouros orçamentários graves (100% ou 120%), webhooks notificam o CAPE.
-  3. O CAPE aciona políticas de contenção, alterando os direitos lógicos da conta (com restrições de permissões ou alterando os parâmetros de limite que são aplicados via pipeline de IaC e processados pelo **IAC engine**).
+### Opção B: Uso de Controles de Faturamento Preexistentes e Centralizados nas Contas Semente (Seed) e AWS Organizations / GCP Billing
+- **Descrição:** Utilizar a infraestrutura preexistente e consolidada de faturamento na conta Seed (mãe):
+  1. **Regras Globais na Semente:** A conta Seed (mãe) já nasce pré-configurada com grupos de orçamento consolidados (AWS Budgets, GCP Billing Budgets) e detectores centralizados de anomalias de custos (AWS Cost Anomaly Detection / GCP Cost Anomaly).
+  2. **Vinculação Automática:** No momento em que o `cloud-manager` (CAPE) cria a conta filha e realiza a associação de billing na conta Seed (conforme ADR-003), ela é automaticamente inserida na hierarquia organizacional ou unidade organizacional (OU) monitorada e herda as políticas preexistentes de controle orçamentário da conta semente.
+  3. **Alertas e Notificações:** Alertas de consumo e custos anômalos gerados no nível da conta Seed são publicados em um tópico de mensageria centralizado da conta mãe (ex: SNS/PubSub central) e roteados de volta para o CAPE.
+  4. **Contenção Lógica:** Se houver estouro crítico de orçamento, o CAPE aciona políticas simples de restrição através de chamadas de API centralizadas na conta mãe (por exemplo, aplicando uma Service Control Policy - SCP de bloqueio preventivo via AWS Organizations, sem necessidade de tocar ou alterar recursos individuais de computação da conta filha).
 - **Prós:**
-  - Isolamento completo: as definições físicas de budgets e regras locais de desligamento de recursos são declaradas como infraestrutura como código no repositório da conta.
-  - Segurança aprimorada, sem necessidade de o CAPE reter permissões diretas de escrita e deleção de recursos de computação das contas filhas.
+  - **Inviolabilidade:** Usuários locais da conta filha não possuem permissão para apagar ou adulterar as regras de faturamento, pois os limites residem e são fiscalizados a partir da conta mãe/Semente de forma centralizada.
+  - **Simplicidade Técnica:** O pipeline de IaC do repositório da conta filha (ADR-005) fica totalmente isento de configurar recursos de faturamento, agilizando o provisionamento.
+  - **Consolidação Nativa:** Facilita a consolidação financeira para auditorias globais de custos.
 - **Contras:**
-  - Exige integração precisa de webhooks entre as notificações das nuvens de faturamento e o CAPE.
+  - Requer que a conta Seed já tenha sido devidamente provisionada e configurada previamente com esses mecanismos de detecção centralizados de faturamento antes de desdobrar contas filhas.
 
 ## Decisão Escolhida
-Aprovamos a **Opção B: Provisionamento de Budgets no Repositório IaC da Conta e Contenção via Pipelines e Mecanismos Seed**.
-A API de criação de contas do `cloud-manager` receberá o limite orçamentário mensal (`monthlyBudgetLimit`) e o tipo de ambiente. No momento de instanciar o repositório Git de IaC da conta filha (conforme ADR-005), o CAPE adicionará o arquivo de variáveis do budget ao repositório.
-A pipeline do repositório, ao ser executada pelo **IAC engine**, criará as regras físicas de faturamento (AWS Budgets ou GCP Budgets) vinculadas à conta filha correspondente. Ao atingir o orçamento definido (ex: 120% em ambientes de teste), o webhook notifica o CAPE. O CAPE, de maneira segura, atualiza a configuração orçamentária do repositório ou altera as políticas gerais de IAM/SCP (via pipeline), bloqueando novas criações de recursos.
+Aprovamos a **Opção B: Uso de Controles de Faturamento Preexistentes e Centralizados nas Contas Semente (Seed) e AWS Organizations / GCP Billing**.
+O monitoramento e a aplicação de limites orçamentários não serão controlados via código Terraform na conta filha. Toda a infraestrutura física de controle de custos será centralizada e herdada a partir das contas Semente preexistentes.
+O `cloud-manager` (CAPE) apenas repassa o limite orçamentário lógico no banco de dados e associa a nova conta filha às tags e políticas corporativas globais de faturamento configuradas na semente. Eventos de desvios e alarmes disparados na conta Seed serão enviados ao CAPE via tópico SNS/PubSub integrado de monitoramento corporativo central.
+Caso um estouro de orçamento ocorra, a contenção será aplicada de forma centralizada por meio de regras aplicadas no nível da organização (como uma SCP restritiva anexada na conta filha a partir da conta raiz), garantindo que os dados e recursos físicos de produção permaneçam preservados enquanto a conta é bloqueada de forma limpa e segura contra novas cobranças.
 
 ## Consequências
 - **Positivas:**
-  - Alinhamento rigoroso com as melhores práticas de FinOps e GitOps.
-  - O CAPE não precisa possuir credenciais destrutivas de recursos de infraestrutura das contas filhas, delegando as mudanças ao repositório de IaC da conta executado de forma auditável pelo IAC engine.
+  - Governança de faturamento absolutamente blindada contra adulterações locais.
+  - Menor complexidade e tempo de execução na criação das contas filhas, que herdam as estruturas de custo instantaneamente ao serem ligadas à semente.
+  - Gerenciamento unificado e simplificado para o time de FinOps corporativo.
 - **Negativas/Riscos:**
-  - Necessidade de garantir que os arquivos de templates de IaC no repositório tratem corretamente os Budgets nativos de cada nuvem.
+  - Dependência estrita de que a conta Seed preexistente esteja com a infraestrutura de billing, limites globais e detectores de anomalias corretamente criados e operacionais.
 - **Plano de Mitigação:**
-  - O template de repositório de IaC de contas filhas conterá módulos altamente validados e testados pelo time de plataforma para criação de budgets em AWS e GCP, prevenindo erros na pipeline.
+  - Desenvolver um validador de integridade (Health Check) no CAPE que verifica a saúde e conectividade com a API de Billing da conta Seed antes de iniciar qualquer fluxo de criação de conta filha.
