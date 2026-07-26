@@ -85,6 +85,7 @@ Para aprofundar-se nas especificações técnicas e decisões que moldaram este 
   * **[ADR-001 - Adoção de Arquitetura Hexagonal com Domínio em Java Puro](docs/adr/adr-001-arquitetura-hexagonal-dominio-puro.md)**
   * **[ADR-002 - Orquestração Baseada em Eventos com Máquina de Estados](docs/adr/adr-002-orquestracao-eventos-maquina-estados.md)**
   * **[ADR-003 - Herança de Faturamento para Contas Filhas via Contas Seed](docs/adr/adr-003-heranca-billing-contas-filhas.md)**
+  * **[ADR-004 - Interface Gráfica de Governança para Contas Cloud](docs/adr/adr-004-interface-grafica-governanca.md)**
 * 🤖 **[Prompt Master para IAs](docs/prompt-master.md)**: Prompt de engenharia estruturado para acelerar o desenvolvimento de novas rotas ou geração de boilerplates e modelos complementares utilizando Copilot, Claude ou GPT-4.
 
 ---
