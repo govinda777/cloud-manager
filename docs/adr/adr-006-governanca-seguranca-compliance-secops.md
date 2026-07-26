@@ -1,4 +1,4 @@
-# ADR-006: Implementação de Guardrails de Segurança e Políticas como Código (SecOps & Compliance)
+# ADR-006: Delimitação de Escopo de SecOps e Delegação de Guardrails Preventivos para a Engine de IaC
 
 - **Status:** Proposto
 - **Data:** 2026-07-26
@@ -6,41 +6,42 @@
 - **Relacionado a:** ADR-004, ADR-005
 
 ## Contexto e Problema
-O provisionamento descentralizado e automático de contas Cloud gera riscos severos de conformidade, segurança e vazamento de dados. Usuários e desenvolvedores com acesso administrativo às contas filhas podem criar recursos expostos à internet pública ou em desconformidade com os padrões. O ecossistema de governança precisa garantir de forma preventiva e reativa que todas as contas permaneçam seguras, seguindo o modelo de separação de responsabilidades (conforme ADR-005).
+A segurança, conformidade e aplicação de políticas de infraestrutura como código (Policy-as-Code/Guardrails) são críticas para garantir o provisionamento correto de recursos nas contas filhas. Contudo, para manter a pureza arquitetural do `cloud-manager` (CAPE) e obedecer à separação rigorosa de responsabilidades estabelecida na ADR-005, é fundamental delimitar o escopo do que o CAPE valida ativamente. O CAPE não deve atuar como um motor de análise de segurança estática ou varredura de código de infraestrutura, sob o risco de inchar suas regras de negócio e acoplá-lo a lógicas pesadas de verificação de segurança.
 
 ## Comparação com ADRs Existentes
-A ADR-004 aborda a necessidade de uma interface gráfica que reporte vulnerabilidades de postura em tempo real. Esta ADR detalha como os Guardrails preventivos e reativos são estruturados entre as barreiras de desenvolvimento (repositório IaC da conta + IAC engine) e o monitoramento central de postura.
+A ADR-004 prevê um painel visual (Dashboard) que exibe as vulnerabilidades encontradas nas contas de forma reativa. A presente ADR estabelece a separação clara e a exclusão de escopo do CAPE quanto à validação ativa de segurança preventiva, formalizando que essa tarefa pertence unicamente à pipeline de IaC do repositório de cada conta, executada de forma nativa pela **IAC engine**.
 
 ## Opções Consideradas
 
-### Opção A: Validação e Varredura Centralizada pelo CAPE via Polling de APIs de Segurança
-- **Descrição:** O `cloud-manager` seria responsável por ler e validar de forma ativa o código de cada repositório e rodar verificações de segurança no seu backend Java.
+### Opção A: Validação Ativa de Postura de Código IaC Dentro do Core do CAPE
+- **Descrição:** O CAPE receberia ou leria os arquivos Terraform gerados, interpretando-os e aplicando regras de validação estática de segurança preventivamente antes de dar andamento às transições de estado.
 - **Prós:**
-  - Lógica centralizada de validação em um único ponto.
+  - O controle preventivo total estaria sob a governança direta e centralizada do backend em Java.
 - **Contras:**
-  - Desperdício de recursos de computação do core de negócio.
-  - Viola a separação de responsabilidades definida na ADR-005: o CAPE deve gerenciar o ciclo de vida e não atuar como motor de validação estática de códigos de infraestrutura de terceiros.
+  - Mistura regras de governança lógica de contas com validação estática de recursos físicos.
+  - Aumento expressivo da complexidade do microsserviço com a inclusão de motores de análise de IaC.
 
-### Opção B: Políticas como Código (OPA/Rego) na Pipeline do Repositório IaC executadas pelo IAC Engine e Guardrails Contínuos de Nuvem
-- **Descrição:** Distribuir as políticas e validações de segurança em duas camadas principais:
-  1. **Camada Preventiva (Shift-Left na Pipeline do Repositório IaC):** No pipeline do repositório Git de IaC criado para a conta (a partir do template), etapas automatizadas invocam o **IAC engine** para auditar os arquivos de plano de infraestrutura do Terraform contra regras escritas em OPA (Open Policy Agent) ou Checkov, antes de aplicar qualquer recurso.
-  2. **Camada Reativa (Monitoramento Contínuo):** Implantar, por meio dos recursos gerados pelo pipeline de IaC, políticas nativas de conformidade (AWS Config Rules com auto-remediação, SCPs no AWS Organizations, e Organization Policies no GCP). O `cloud-manager` atua consumindo eventos de desvios dessas soluções para relatar a postura no Dashboard (ADR-004).
+### Opção B: Exclusão Total de Escopo Preventivo do CAPE e Delegação Exclusiva para a IAC Engine e Pipelines
+- **Descrição:** Declarar que o escopo de validação de postura de segurança preventiva e a análise de políticas como código (Policy-as-Code) estão totalmente fora do escopo do `cloud-manager` (CAPE). Toda essa responsabilidade é delegada à pipeline do repositório IaC templatizado de cada conta, cujo processamento e validação física de regras são efetuados exclusivamente pela **IAC engine** durante a aplicação dos recursos.
 - **Prós:**
-  - Bloqueia vulnerabilidades de infraestrutura diretamente na esteira de CI/CD do repositório IaC, antes que o recurso chegue a existir na nuvem física.
-  - Totalmente alinhado à separação de responsabilidades da ADR-005: o processamento pesado de validações ocorre no pipeline IaC delegando ao IAC engine.
+  - Isolamento completo: o CAPE não possui qualquer conhecimento ou código referente a regras preventivas de recursos de segurança locais (como portas abertas ou criptografia de buckets).
+  - A **IAC engine** atua como o único motor responsável por validar a segurança e impedir deploys fora de conformidade na nuvem física.
+  - Redução drástica da complexidade técnica e tamanho do codebase do `cloud-manager` (CAPE).
 - **Contras:**
-  - Requer que o template do repositório de IaC de contas filhas já venha pré-configurado com as esteiras de teste de OPA/Rego.
+  - O CAPE dependerá exclusivamente dos alertas gerados de volta pelas ferramentas de runtime e da notificação de sucesso/falha do pipeline para saber se as políticas foram obedecidas.
 
 ## Decisão Escolhida
-Aprovamos a **Opção B: Políticas como Código (OPA/Rego) na Pipeline do Repositório IaC executadas pelo IAC Engine e Guardrails Contínuos de Nuvem**.
-As políticas preventivas de segurança (Policy-as-Code) serão integradas nativamente como etapas obrigatórias na esteira de CI/CD de cada repositório de IaC templatizado. O pipeline fará o upload ou chamará a validação do plano estático do Terraform no **IAC engine**, comparando-o com regras corporativas centralizadas escritas em OPA/Rego. Qualquer infraestrutura fora do padrão (ex: IPs públicos abertos) causa o bloqueio imediato do pipeline, impedindo que o deploy seja consolidado.
-As regras de compliance de runtime (AWS Config e GCP Security Health Analytics) instaladas como recursos de baseline via pipeline de IaC garantirão a segurança contínua, reportando incidentes que serão recebidos assincronamente pelo CAPE para atualização do painel de segurança.
+Aprovamos a **Opção B: Exclusão Total de Escopo Preventivo do CAPE e Delegação Exclusiva para a IAC Engine e Pipelines**.
+O `cloud-manager` (CAPE) está explicitamente **isento** de validar, ler ou analisar regras preventivas de segurança física e infraestrutura como código.
+Toda a responsabilidade de executar auditorias estáticas de código (como testes OPA/Rego, checagem de privilégios ou busca por portas expostas) é delegada à pipeline de CI/CD do repositório IaC da conta filha. A validação de conformidade da infraestrutura física gerada será executada exclusivamente pelo microsserviço especializado **IAC engine** no momento da execução do deploy.
+O CAPE apenas consome as notificações de resultado (sucesso ou falha) da pipeline e as vulnerabilidades reportadas de runtime (via monitoramento contínuo dos provedores de nuvem) para exibição visual no Dashboard (ADR-004).
 
 ## Consequências
 - **Positivas:**
-  - Mitigação precoce de riscos de segurança no início do ciclo de vida dos recursos (Shift-Left).
-  - Isolamento de execução de validações estáticas de infraestrutura nas pipelines dos repositórios e no IAC engine, sem consumo de processamento no CAPE.
+  - Máxima simplicidade e coesão no codebase do `cloud-manager` (CAPE).
+  - Alinhamento rigoroso ao princípio de responsabilidade única e separação de responsabilidades.
+  - Se novas regras de conformidade de segurança forem adicionadas ou alteradas, não há necessidade de qualquer alteração de código ou implantação no CAPE, já que essa gestão reside integralmente nas regras da **IAC engine**.
 - **Negativas/Riscos:**
-  - Necessidade de gerenciar e atualizar os scripts Rego de política em todas as esteiras de repositório.
+  - Falhas na configuração do pipeline ou no **IAC engine** podem permitir o provisionamento de recursos fora de conformidade sem o bloqueio precoce do CAPE.
 - **Plano de Mitigação:**
-  - Manter as políticas de OPA/Rego em um repositório Git centralizado de governança. A pipeline de CI/CD do repositório IaC de cada conta filha clonará/puxará essas regras centralizadas dinamicamente em tempo de execução para garantir que todos usem sempre as regras de segurança mais recentes.
+  - Manter o template padrão de repositório de IaC (ADR-005) com a integração nativa e inquebrável para a esteira de validação do **IAC engine**, garantindo que nenhuma conta seja provisionada ignorando essas validações.
