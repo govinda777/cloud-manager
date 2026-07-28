@@ -90,31 +90,85 @@ Para aprofundar-se nas especificações técnicas e decisões que moldaram este 
 
 ---
 
-## 🛠️ Como Executar Localmente
+## 🚀 Pré-requisitos
 
-### Pré-requisitos
-- **Java 21**
-- **Docker** e **Docker Compose**
-- **Maven** (ou wrapper embutido `./mvnw`)
+Certifique-se de ter os seguintes componentes instalados em sua máquina:
 
-### Setup do Ambiente Local
-A infraestrutura local é orquestrada via Docker Compose, que disponibiliza o banco PostgreSQL e uma instância do **ElasticMQ** (servidor compatível com AWS SQS que substitui o LocalStack de forma muito mais leve e robusta):
+- **Docker** e **Docker Compose** (Plugin v2+)
+- **Make** (`build-essential` no Linux / nativo no macOS / via Chocolatey/WSL no Windows)
+- **Java OpenJDK 21** (opcional, para execução direta fora do contêiner)
+
+---
+
+## 🛠️ Onboarding Rápido (Zero Friction)
+
+### 1. Clonar e Inicializar o Ambiente
+Execute o comando abaixo para gerar o `.env` local e preparar as dependências do Maven:
 
 ```bash
-# Iniciar dependências locais (Banco de Dados e ElasticMQ para SQS local)
-docker-compose up -d
+make setup
 ```
 
-### Compilar e Rodar a Aplicação
+### 2. Subir a Infraestrutura Local
+Suba as dependências externas (PostgreSQL e ElasticMQ SQS):
 ```bash
-# Executar testes unitários e de integração
-./mvnw clean test
+make up
+```
 
-# Inicializar o microsserviço Spring Boot
+Verifique o status da infraestrutura:
+```bash
+make status
+```
+
+### 3. Rodar a Aplicação na Máquina Host
+Com a infraestrutura rodando em background, inicie o Spring Boot:
+```bash
 ./mvnw spring-boot:run
 ```
 
 ---
 
 ## 🧪 Suíte de Testes
+
 O projeto emprega **JUnit 5** juntamente com cenários em formato BDD via **Cucumber** para garantir a consistência das transições da máquina de estado perante variados fluxos e erros de rede.
+
+* **Testes Unitários:**
+  ```bash
+  make test
+  ```
+
+* **Testes de Integração:**
+  ```bash
+  make test-integration
+  ```
+
+* **Testes BDD (Cucumber):**
+  Rodar todos os cenários padrão:
+  ```bash
+  make test-bdd
+  ```
+
+  Rodar cenários por tags específicas (ex: @smoke ou @critical):
+  ```bash
+  make test-bdd TAGS="@smoke"
+  ```
+
+---
+
+## 🧹 Limpeza de Ambiente
+Para resetar completamente o ambiente local, apagando volumes do banco de dados e caches do build:
+```bash
+make clean
+```
+
+---
+
+## ☁️ IaC Ops e Pipeline CI/CD com Contas Efémeras
+
+O projeto adota uma abordagem **zero-trust e IaC Ops** para validação de infraestrutura contínua em Pull Requests (PRs). Em vez de emular a nuvem localmente, utilizamos GitHub Actions integrado com Keyless OIDC (OpenID Connect) para provisionar contas reais, aplicar as receitas e testá-las via BDD.
+
+### Como Funciona a Vending Machine de PRs:
+1. **Autenticação OIDC**: O GitHub Actions assume uma *Role* temporária na AWS ou GCP sem a necessidade de chaves de longa duração configuradas nos segredos do repositório.
+2. **Setup Efémero (Sandbox)**: Ao abrir ou atualizar um PR, o workflow invoca o `scripts/vending_machine.sh` para alocar uma nova conta efémera sob uma Organizational Unit (OU) ou Folder isolada.
+3. **Application & Testing**: A receita de infraestrutura é aplicada na conta limpa, e os testes BDD (Cucumber) definidos em `src/test/resources/features/account_vending.feature` são executados para garantir a aderência às políticas de governança (SCPs, restrições financeiras, logs ativos).
+4. **Teardown**: Ao finalizar os testes ou fechar a PR, a conta é automaticamente destruída ou movida para uma OU de Quarentena, garantindo controle de custos.

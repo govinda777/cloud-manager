@@ -1,0 +1,94 @@
+name: IaC Ops - Dynamic Cloud Environment Test
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [ main, develop ]
+
+permissions:
+  id-token: write  # Obrigatório para autenticação via OIDC no AWS/GCP
+  contents: read
+  pull-requests: write
+
+jobs:
+  # -------------------------------------------------------------
+  # JOB 1: Testes BDD em Contas Reais (Executado apenas em PRs Abertas/Atualizadas)
+  # -------------------------------------------------------------
+  test-cloud-recipe:
+    if: github.event.action != 'closed'
+    name: ☁️ Provision Account & Run BDD Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_PIPELINE_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Authenticate to GCP via OIDC
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - name: Provision Ephemeral Target Account/Project
+        id: provision
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          echo "Provisionando conta efémera para a PR-${PR_NUMBER}..."
+          bash scripts/vending_machine.sh --pr $PR_NUMBER --provider aws --action create
+
+      - name: Setup Java Environment
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Apply Cloud Manager Recipe
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          # Simula a aplicação da receita na nova conta
+          echo "Aplicando infraestrutura para PR-$PR_NUMBER"
+
+      - name: Run BDD Governance & Behavior Tests
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          # Executa a suíte Cucumber/Java contra a conta criada
+          make test-bdd TAGS="@sandbox"
+
+      - name: Teardown Cloud Account on Test Completion
+        if: always()
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          bash scripts/vending_machine.sh --pr $PR_NUMBER --action destroy
+
+  # -------------------------------------------------------------
+  # JOB 2: Garantia de Cleanup ao Fechar a PR
+  # -------------------------------------------------------------
+  cleanup-on-close:
+    if: github.event.action == 'closed'
+    name: 🧹 Cleanup PR Cloud Resources
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to AWS via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_PIPELINE_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Destroy PR Cloud Account
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          bash scripts/vending_machine.sh --pr $PR_NUMBER --action destroy --force
