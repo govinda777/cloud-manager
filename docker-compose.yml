@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cloud-manager-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cloud_manager_db}
+      POSTGRES_USER: ${POSTGRES_USER:-cloud_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cloud_pass}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cloud_user} -d ${POSTGRES_DB:-cloud_manager_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cloud-manager-net
+
+  elasticmq:
+    image: softwaremill/elasticmq-native:latest
+    container_name: cloud-manager-elasticmq
+    restart: always
+    ports:
+      - "${ELASTICMQ_PORT:-9324}:9324" # Porta do serviço SQS
+      - "${ELASTICMQ_UI_PORT:-9325}:9325" # Interface gráfica web
+    volumes:
+      - ./config/elasticmq.conf:/opt/elasticmq.conf:ro
+    networks:
+      - cloud-manager-net
+
+  app:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cloud-manager-app
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-cloud_manager_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-cloud_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-cloud_pass}
+      AWS_SQS_ENDPOINT: http://elasticmq:9324
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticmq:
+        condition: service_started
+    networks:
+      - cloud-manager-net
+
+networks:
+  cloud-manager-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
