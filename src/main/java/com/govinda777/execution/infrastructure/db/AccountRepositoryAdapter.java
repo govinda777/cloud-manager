@@ -49,6 +49,13 @@ public class AccountRepositoryAdapter implements AccountRepositoryGateway {
         return jpaRepository.findByState(s).stream().map(this::toDomain).collect(Collectors.toList());
     }
 
+    @Override
+    public Optional<CloudAccount> findAvailablePoolAccount(String provider) {
+        return jpaRepository.findAvailablePoolAccounts(provider).stream()
+                .map(this::toDomain)
+                .findFirst();
+    }
+
     private CloudAccount toDomain(AccountJpaEntity entity) {
         return new CloudAccount(
                 entity.getId(),

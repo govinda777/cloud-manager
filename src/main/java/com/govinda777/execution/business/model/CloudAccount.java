@@ -53,8 +53,27 @@ public class CloudAccount {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void activate() {
+    public void markReadyToBook() {
         if (this.state != AccountState.BILLING_LINKED && this.state != AccountState.IN_PROVISIONING) {
+            throw new IllegalStateException("Cannot transition to READY_TO_BOOK from state: " + this.state);
+        }
+        this.state = AccountState.READY_TO_BOOK;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void book(String name, String email, String costCenter) {
+        if (this.state != AccountState.READY_TO_BOOK) {
+            throw new IllegalStateException("Cannot book account in state: " + this.state);
+        }
+        this.name = name;
+        this.email = email;
+        this.costCenter = costCenter;
+        this.state = AccountState.BOOKED;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void activate() {
+        if (this.state != AccountState.BILLING_LINKED && this.state != AccountState.IN_PROVISIONING && this.state != AccountState.BOOKED) {
             throw new IllegalStateException("Cannot activate account from state: " + this.state);
         }
         this.state = AccountState.ACTIVE;

@@ -45,9 +45,39 @@ init: ## Torna o wrapper executável e baixa as dependências Maven em modo offl
 ## @ Gerenciamento da Infraestrutura
 up: env ## Sobe os serviços de infraestrutura local em background (PostgreSQL e ElasticMQ)
 	docker compose up -d postgres elasticmq
+	@if [ -f .env ]; then \
+		export $$(grep -v '^#' .env | xargs); \
+	fi; \
+	printf "\n\033[1;36m========================================================================\033[0m\n"; \
+	printf "\033[1;32m🚀 Cloud Manager - Serviços de Infraestrutura Iniciados!\033[0m\n"; \
+	printf "\033[1;36m========================================================================\033[0m\n"; \
+	printf "\033[1;34m☁️  PROVEDORES DE INFRAESTRUTURA (LOCAL MOCKS):\033[0m\n"; \
+	printf "  - \033[1mPostgreSQL:\033[0m      localhost:$${POSTGRES_PORT:-5432} (DB: $${POSTGRES_DB:-cloud_manager_db}, User: $${POSTGRES_USER:-cloud_user})\n"; \
+	printf "  - \033[1mElasticMQ (SQS):\033[0m localhost:$${ELASTICMQ_PORT:-9324} (AWS SQS Mock API)\n"; \
+	printf "  - \033[1mSQS Console UI:\033[0m  http://localhost:$${ELASTICMQ_UI_PORT:-9325} (Interface Web da Fila)\n"; \
+	printf "\033[1;36m========================================================================\033[0m\n"
 
 up-all: env ## Sobe toda a pilha, incluindo a aplicação Spring Boot contêinerizada
 	docker compose --profile full up -d --build
+	@if [ -f .env ]; then \
+		export $$(grep -v '^#' .env | xargs); \
+	fi; \
+	printf "\n\033[1;36m========================================================================\033[0m\n"; \
+	printf "\033[1;32m🚀 Cloud Manager - Aplicação e Infraestrutura Iniciadas com Sucesso!\033[0m\n"; \
+	printf "\033[1;36m========================================================================\033[0m\n"; \
+	printf "\033[1;34m💻 APLICAÇÃO PRINCIPAL:\033[0m\n"; \
+	printf "  - \033[1mAPI Base:\033[0m        http://localhost:8080\n"; \
+	printf "  - \033[1mSwagger UI:\033[0m      http://localhost:8080/swagger-ui.html\n"; \
+	printf "  - \033[1mOpenAPI Docs:\033[0m    http://localhost:8080/api-docs\n\n"; \
+	printf "\033[1;34m📊 ADMINISTRAÇÃO & OBSERVABILIDADE:\033[0m\n"; \
+	printf "  - \033[1mBusiness Dashboard:\033[0m http://localhost:8080/accounts/dashboard (Métricas em tempo real)\n"; \
+	printf "  - \033[1mHealth Check:\033[0m       http://localhost:8080/actuator/health (Status da Plataforma)\n"; \
+	printf "  - \033[1mMetrics Endpoint:\033[0m   http://localhost:8080/actuator/metrics (Métricas do Sistema)\n\n"; \
+	printf "\033[1;34m☁️  PROVEDORES DE INFRAESTRUTURA (LOCAL MOCKS):\033[0m\n"; \
+	printf "  - \033[1mPostgreSQL:\033[0m      localhost:$${POSTGRES_PORT:-5432} (DB: $${POSTGRES_DB:-cloud_manager_db}, User: $${POSTGRES_USER:-cloud_user})\n"; \
+	printf "  - \033[1mElasticMQ (SQS):\033[0m localhost:$${ELASTICMQ_PORT:-9324} (AWS SQS Mock API)\n"; \
+	printf "  - \033[1mSQS Console UI:\033[0m  http://localhost:$${ELASTICMQ_UI_PORT:-9325} (Interface Web da Fila)\n"; \
+	printf "\033[1;36m========================================================================\033[0m\n"
 
 down: ## Derruba todos os contêineres e limpa as redes
 	docker compose --profile full down

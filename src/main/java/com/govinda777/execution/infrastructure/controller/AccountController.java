@@ -4,6 +4,14 @@ import com.govinda777.execution.business.gateway.AccountRepositoryGateway;
 import com.govinda777.execution.business.logic.CreateAccountUseCase;
 import com.govinda777.execution.business.model.AccountState;
 import com.govinda777.execution.business.model.CloudAccount;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -18,6 +26,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/accounts")
+@Tag(name = "Contas Cloud", description = "Endpoints para gerenciamento, provisionamento e monitoramento de contas multi-cloud (CAPE)")
 public class AccountController {
 
     private final CreateAccountUseCase createAccountUseCase;
@@ -29,6 +38,12 @@ public class AccountController {
     }
 
     @PostMapping
+    @Operation(summary = "Criar uma nova conta cloud", description = "Provisiona de forma assíncrona uma nova conta na nuvem configurada (AWS, GCP, Azure) vinculando-a a um centro de custo.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Conta criada e enfileirada para provisionamento", 
+                    content = { @Content(mediaType = "application/json", schema = @Schema(implementation = AccountResponse.class)) }),
+            @ApiResponse(responseCode = "400", description = "Requisição inválida (parâmetros obrigatórios ausentes ou inválidos)", content = @Content)
+    })
     public ResponseEntity<AccountResponse> createAccount(@Valid @RequestBody CreateAccountRequest request) {
         CloudAccount account = new CloudAccount();
         account.setName(request.getName());
@@ -42,6 +57,9 @@ public class AccountController {
     }
 
     @GetMapping
+    @Operation(summary = "Listar todas as contas", description = "Retorna uma lista com todas as contas cadastradas na base de dados.")
+    @ApiResponse(responseCode = "200", description = "Lista de contas retornada com sucesso", 
+            content = { @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = AccountResponse.class))) })
     public ResponseEntity<List<AccountResponse>> getAllAccounts() {
         List<AccountResponse> list = repositoryGateway.findAll()
                 .stream()
@@ -51,14 +69,27 @@ public class AccountController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<AccountResponse> getAccountById(@PathVariable("id") Long id) {
+    @Operation(summary = "Obter conta por ID", description = "Retorna os detalhes de uma conta específica através do seu identificador único.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Conta encontrada com sucesso", 
+                    content = { @Content(mediaType = "application/json", schema = @Schema(implementation = AccountResponse.class)) }),
+            @ApiResponse(responseCode = "404", description = "Conta não encontrada", content = @Content)
+    })
+    public ResponseEntity<AccountResponse> getAccountById(
+            @Parameter(description = "ID da conta a ser buscada", required = true, example = "1")
+            @PathVariable("id") Long id) {
         return repositoryGateway.findById(id)
                 .map(acc -> ResponseEntity.ok(toResponse(acc)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/cost-center/{costCenter}")
-    public ResponseEntity<List<AccountResponse>> getAccountsByCostCenter(@PathVariable("costCenter") String costCenter) {
+    @Operation(summary = "Listar contas por Centro de Custo", description = "Retorna todas as contas que estão vinculadas ao centro de custo especificado.")
+    @ApiResponse(responseCode = "200", description = "Contas filtradas retornadas com sucesso", 
+            content = { @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = AccountResponse.class))) })
+    public ResponseEntity<List<AccountResponse>> getAccountsByCostCenter(
+            @Parameter(description = "Nome/Código do Centro de Custo", required = true, example = "Engenharia-SP")
+            @PathVariable("costCenter") String costCenter) {
         List<AccountResponse> list = repositoryGateway.findByCostCenter(costCenter)
                 .stream()
                 .map(this::toResponse)
@@ -67,6 +98,9 @@ public class AccountController {
     }
 
     @GetMapping("/dashboard")
+    @Operation(summary = "Obter dados do Dashboard de Negócio", description = "Consolida métricas em tempo real sobre o total de contas, contas em processo de criação, ativas, falhas, além da distribuição por centro de custo e provedor.")
+    @ApiResponse(responseCode = "200", description = "Métricas do dashboard geradas com sucesso", 
+            content = { @Content(mediaType = "application/json", schema = @Schema(implementation = DashboardResponse.class)) })
     public ResponseEntity<DashboardResponse> getDashboard() {
         List<CloudAccount> all = repositoryGateway.findAll();
         
@@ -101,20 +135,26 @@ public class AccountController {
     }
 
     // DTOs
+    @Schema(description = "Dados para criação e provisionamento de uma nova conta cloud")
     public static class CreateAccountRequest {
         @NotBlank(message = "Name is required")
+        @Schema(description = "Nome do projeto ou conta", example = "projeto-alpha-prod")
         private String name;
 
         @NotBlank(message = "Email is required")
         @Email(message = "Email is invalid")
+        @Schema(description = "E-mail do administrador/dono da conta", example = "admin@empresa.com")
         private String email;
 
         @NotBlank(message = "Provider is required")
+        @Schema(description = "Provedor de Nuvem (AWS, GCP ou AZURE)", example = "AWS")
         private String provider;
 
         @NotBlank(message = "Cost Center is required")
+        @Schema(description = "Centro de custo responsável pela conta", example = "Engenharia-SP")
         private String costCenter;
 
+        @Schema(description = "ID da conta semente vinculada (se aplicável)", example = "10")
         private Long seedAccountId;
 
         // Getters and Setters
@@ -130,16 +170,27 @@ public class AccountController {
         public void setSeedAccountId(Long seedAccountId) { this.seedAccountId = seedAccountId; }
     }
 
+    @Schema(description = "Retorno com os detalhes da conta cloud")
     public static class AccountResponse {
+        @Schema(description = "ID único da conta no banco de dados", example = "1")
         private Long id;
+        @Schema(description = "Nome do projeto ou conta", example = "projeto-alpha-prod")
         private String name;
+        @Schema(description = "E-mail do administrador/dono da conta", example = "admin@empresa.com")
         private String email;
+        @Schema(description = "Provedor de Nuvem", example = "AWS")
         private String provider;
+        @Schema(description = "Estado atual do ciclo de vida da conta", example = "ACTIVE")
         private String state;
+        @Schema(description = "ID da conta semente vinculada", example = "10")
         private Long seedAccountId;
+        @Schema(description = "Centro de custo responsável", example = "Engenharia-SP")
         private String costCenter;
+        @Schema(description = "Mensagem explicativa em caso de erro de provisionamento", example = "Limite de cotas excedido")
         private String errorMessage;
+        @Schema(description = "Data de registro da solicitação")
         private LocalDateTime createdAt;
+        @Schema(description = "Data da última modificação")
         private LocalDateTime updatedAt;
 
         public AccountResponse(Long id, String name, String email, String provider, String state, 
@@ -170,12 +221,19 @@ public class AccountController {
         public LocalDateTime getUpdatedAt() { return updatedAt; }
     }
 
+    @Schema(description = "Consolidado de métricas do Dashboard de Negócio")
     public static class DashboardResponse {
+        @Schema(description = "Total acumulado de contas", example = "15")
         private long totalAccounts;
+        @Schema(description = "Contas em fase de provisionamento", example = "2")
         private long accountsInCreation;
+        @Schema(description = "Contas totalmente provisionadas e ativas", example = "12")
         private long activeAccounts;
+        @Schema(description = "Contas cujo provisionamento falhou", example = "1")
         private long failedAccounts;
+        @Schema(description = "Totalização de contas agrupadas por Centro de Custo", example = "{\"Engenharia-SP\": 10, \"Marketing-US\": 5}")
         private Map<String, Long> accountsByCostCenter;
+        @Schema(description = "Totalização de contas agrupadas por Provedor Cloud", example = "{\"AWS\": 8, \"GCP\": 5, \"AZURE\": 2}")
         private Map<String, Long> accountsByProvider;
 
         public DashboardResponse(long totalAccounts, long accountsInCreation, long activeAccounts, long failedAccounts,

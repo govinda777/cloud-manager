@@ -1,5 +1,8 @@
 /Users/govinda/projetos/cloud-manager/src/test/java/com/govinda777/execution/bdd/CucumberTestRunner.java
+/Users/govinda/projetos/cloud-manager/src/test/java/com/govinda777/execution/bdd/DisasterRecoverySteps.java
+/Users/govinda/projetos/cloud-manager/src/test/java/com/govinda777/execution/bdd/DashboardAndErrorsSteps.java
 /Users/govinda/projetos/cloud-manager/src/test/java/com/govinda777/execution/infrastructure/controller/AccountControllerIntegrationTest.java
 /Users/govinda/projetos/cloud-manager/src/test/java/com/govinda777/execution/business/logic/CreateAccountUseCaseTest.java
 /Users/govinda/projetos/cloud-manager/src/test/java/com/govinda777/execution/business/logic/ProcessAccountProvisioningUseCaseTest.java
 /Users/govinda/projetos/cloud-manager/src/test/java/com/govinda777/execution/bdd/ProvisioningSteps.java
+/Users/govinda/projetos/cloud-manager/src/test/java/com/govinda777/execution/bdd/CucumberSpringConfiguration.java

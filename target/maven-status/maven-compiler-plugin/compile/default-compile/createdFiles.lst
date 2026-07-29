@@ -1,9 +1,11 @@
 com/govinda777/execution/infrastructure/db/JpaAccountRepository.class
 com/govinda777/execution/infrastructure/db/AccountRepositoryAdapter.class
 com/govinda777/execution/infrastructure/db/AccountJpaEntity.class
+com/govinda777/execution/infrastructure/config/DatabaseSeeder.class
 com/govinda777/execution/infrastructure/cloud/MockCloudProviderAdapter.class
 com/govinda777/execution/infrastructure/controller/AccountController$CreateAccountRequest.class
 com/govinda777/execution/infrastructure/controller/AccountController$AccountResponse.class
+com/govinda777/execution/infrastructure/config/OpenApiConfig.class
 com/govinda777/execution/business/gateway/AccountRepositoryGateway.class
 com/govinda777/execution/infrastructure/controller/AccountController$DashboardResponse.class
 com/govinda777/execution/infrastructure/controller/AccountController.class

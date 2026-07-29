@@ -44,7 +44,11 @@ public class ProcessAccountProvisioningUseCase {
             accountRepository.save(account);
 
             // 3. Ativação Final
-            account.activate();
+            if ("CC-POOL-PREPROVISION".equals(account.getCostCenter())) {
+                account.markReadyToBook();
+            } else {
+                account.activate();
+            }
             accountRepository.save(account);
 
         } catch (Exception e) {

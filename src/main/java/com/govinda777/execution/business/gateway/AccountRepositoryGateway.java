@@ -11,4 +11,5 @@ public interface AccountRepositoryGateway {
     List<CloudAccount> findAll();
     List<CloudAccount> findByCostCenter(String costCenter);
     List<CloudAccount> findByState(String state);
+    Optional<CloudAccount> findAvailablePoolAccount(String provider);
 }

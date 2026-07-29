@@ -10,10 +10,13 @@ import java.util.Optional;
 
 public interface JpaAccountRepository extends JpaRepository<AccountJpaEntity, Long> {
     
-    @Query("SELECT a FROM AccountJpaEntity a WHERE a.provider = :provider AND a.seedAccountId IS NULL")
+    @Query("SELECT a FROM AccountJpaEntity a WHERE a.provider = :provider AND a.seedAccountId IS NULL AND a.state = 'ACTIVE'")
     Optional<AccountJpaEntity> findSeedAccount(@Param("provider") String provider);
 
     List<AccountJpaEntity> findByCostCenter(String costCenter);
 
     List<AccountJpaEntity> findByState(AccountState state);
+
+    @Query("SELECT a FROM AccountJpaEntity a WHERE a.provider = :provider AND a.state = 'READY_TO_BOOK' ORDER BY a.id ASC")
+    List<AccountJpaEntity> findAvailablePoolAccounts(@Param("provider") String provider);
 }

@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Manager - Portal de Governança</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0b0f19;
+            --bg-secondary: #111827;
+            --bg-card: #1f2937;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --accent-blue: #3b82f6;
+            --accent-emerald: #10b981;
+            --accent-rose: #f43f5e;
+            --accent-amber: #f59e0b;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Ambient background glow */
+        body::before {
+            content: '';
+            position: absolute;
+            top: -10%;
+            left: -10%;
+            width: 50%;
+            height: 50%;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        body::after {
+            content: '';
+            position: absolute;
+            bottom: -10%;
+            right: -10%;
+            width: 50%;
+            height: 50%;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, transparent 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        header {
+            background-color: rgba(17, 24, 39, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 1.25rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 2.25rem;
+            height: 2.25rem;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-emerald));
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .logo-icon svg {
+            width: 1.25rem;
+            height: 1.25rem;
+            fill: #fff;
+        }
+
+        .logo-text {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 1.5rem;
+            background: linear-gradient(to right, #ffffff, #9ca3af);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+            color: #fff;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all var(--transition-speed) ease;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+            filter: brightness(1.1);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            box-shadow: none;
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--text-secondary);
+            box-shadow: none;
+            transform: none;
+        }
+
+        main {
+            flex: 1;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        /* Dashboard Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .stat-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: transform var(--transition-speed);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(59, 130, 246, 0.25);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+        }
+
+        .stat-card.total::before { background-color: var(--accent-blue); }
+        .stat-card.provisioning::before { background-color: var(--accent-amber); }
+        .stat-card.active::before { background-color: var(--accent-emerald); }
+        .stat-card.failed::before { background-color: var(--accent-rose); }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+        }
+
+        /* Columns layout */
+        .content-columns {
+            display: grid;
+            grid-template-columns: 3fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 1024px) {
+            .content-columns {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Accounts Section */
+        .section-box {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 1.25rem;
+            padding: 1.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .badge-count {
+            background-color: rgba(255, 255, 255, 0.08);
+            color: var(--text-secondary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* Lifecycle swimlanes / list */
+        .accounts-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .account-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all var(--transition-speed) ease;
+        }
+
+        .account-card:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateX(4px);
+        }
+
+        .account-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .account-name-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .account-name {
+            font-weight: 600;
+            color: #fff;
+            font-size: 1.05rem;
+        }
+
+        .provider-badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.35rem;
+            letter-spacing: 0.5px;
+        }
+
+        .provider-badge.aws {
+            background-color: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .provider-badge.gcp {
+            background-color: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .account-meta {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .meta-dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background-color: var(--border-color);
+        }
+
+        .status-pill {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.35rem 0.75rem;
+            border-radius: 50px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .status-pill.created {
+            background-color: rgba(156, 163, 175, 0.1);
+            color: #9ca3af;
+        }
+
+        .status-pill.in_provisioning {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: var(--accent-amber);
+            animation: pulse-amber 2s infinite;
+        }
+
+        .status-pill.billing_linked {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: var(--accent-blue);
+        }
+
+        .status-pill.active {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--accent-emerald);
+        }
+
+        .status-pill.failed {
+            background-color: rgba(244, 63, 94, 0.1);
+            color: var(--accent-rose);
+        }
+
+        .error-message-box {
+            margin-top: 0.5rem;
+            padding: 0.75rem;
+            background-color: rgba(244, 63, 94, 0.05);
+            border-left: 3px solid var(--accent-rose);
+            border-radius: 0 0.5rem 0.5rem 0;
+            color: var(--accent-rose);
+            font-size: 0.825rem;
+            font-weight: 500;
+        }
+
+        @keyframes pulse-amber {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
+        /* Sidebar Analytics */
+        .analytics-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .analytics-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 1.25rem;
+            padding: 1.5rem;
+        }
+
+        .analytics-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 1.25rem;
+        }
+
+        .bar-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .bar-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .bar-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .bar-label-name { color: var(--text-primary); }
+        .bar-label-val { color: var(--text-secondary); }
+
+        .bar-track {
+            height: 6px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(to right, var(--accent-blue), var(--accent-emerald));
+            border-radius: 3px;
+            width: 0;
+            transition: width 1s ease-out;
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 1.25rem;
+            width: 100%;
+            max-width: 550px;
+            padding: 2.25rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .modal {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.75rem;
+        }
+
+        .modal-close {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .form-input, .form-select {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: #fff;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color var(--transition-speed);
+            width: 100%;
+        }
+
+        .form-input:focus, .form-select:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .form-actions {
+            margin-top: 1.75rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-container">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+                </svg>
+            </div>
+            <span class="logo-text">Cloud Manager</span>
+        </div>
+        <button class="btn" id="btn-create">
+            <svg style="width:1.1rem; height:1.1rem" viewBox="0 0 24 24">
+                <path fill="#fff" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            Provisionar Conta
+        </button>
+    </header>
+
+    <main>
+        <!-- KPI Dashboard -->
+        <section class="stats-grid">
+            <div class="stat-card total">
+                <span class="stat-label">Contas Totais</span>
+                <span class="stat-value" id="stats-total">0</span>
+            </div>
+            <div class="stat-card provisioning">
+                <span class="stat-label">Em Provisionamento</span>
+                <span class="stat-value" id="stats-provisioning">0</span>
+            </div>
+            <div class="stat-card active">
+                <span class="stat-label">Ativas</span>
+                <span class="stat-value" id="stats-active">0</span>
+            </div>
+            <div class="stat-card failed">
+                <span class="stat-label">Falhas</span>
+                <span class="stat-value" id="stats-failed">0</span>
+            </div>
+        </section>
+
+        <!-- Contas Semente / Base Section -->
+        <section class="section-box" style="margin-bottom: 0;">
+            <div class="section-header">
+                <h2 class="section-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                    🔑 Contas Semente / Base (OIDC & Billing Roots)
+                </h2>
+                <span class="badge-count" id="badge-seed-accounts">0 Contas Base</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;" id="seed-accounts-list">
+                <div class="empty-state">Buscando contas base...</div>
+            </div>
+        </section>
+
+        <!-- Main section cols -->
+        <section class="content-columns">
+            
+            <!-- List Column -->
+            <div class="section-box">
+                <div class="section-header">
+                    <h2 class="section-title">Contas Corporativas Provisionadas</h2>
+                    <span class="badge-count" id="badge-total-accounts">0 Contas</span>
+                </div>
+                <div class="accounts-list" id="accounts-list">
+                    <div class="empty-state">Buscando contas cloud...</div>
+                </div>
+            </div>
+
+            <!-- Side Analytics Column -->
+            <div class="analytics-col">
+                <!-- Por Provedor -->
+                <div class="analytics-card">
+                    <h3 class="analytics-title">Por Provedor Cloud</h3>
+                    <div class="bar-list" id="provider-chart">
+                        <!-- Dynamic content -->
+                    </div>
+                </div>
+
+                <!-- Por Centro de Custo -->
+                <div class="analytics-card">
+                    <h3 class="analytics-title">Por Centro de Custo</h3>
+                    <div class="bar-list" id="cost-center-chart">
+                        <!-- Dynamic content -->
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Modal Form -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="section-title">Provisionar Nova Conta</h3>
+                <button class="modal-close" id="btn-close-modal">&times;</button>
+            </div>
+            <form id="create-account-form">
+                <div class="form-group">
+                    <label class="form-label" for="name">Nome da Conta</label>
+                    <input class="form-input" type="text" id="name" required placeholder="Ex: Financeiro-Prod">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="email">E-mail do Administrador</label>
+                    <input class="form-input" type="email" id="email" required placeholder="Ex: admin@empresa.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="provider">Provedor Cloud</label>
+                    <select class="form-select" id="provider" required>
+                        <option value="AWS">AWS</option>
+                        <option value="GCP">Google Cloud Platform (GCP)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="costCenter">Centro de Custo</label>
+                    <input class="form-input" type="text" id="costCenter" required placeholder="Ex: CC-FINANCEIRO">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="seedAccountId">ID Conta Semente / Billing (Opcional)</label>
+                    <input class="form-input" type="number" id="seedAccountId" placeholder="Ex: 1">
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-outline" id="btn-cancel">Cancelar</button>
+                    <button type="submit" class="btn">Provisionar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const modalOverlay = document.getElementById('modal-overlay');
+        const btnCreate = document.getElementById('btn-create');
+        const btnCloseModal = document.getElementById('btn-close-modal');
+        const btnCancel = document.getElementById('btn-cancel');
+        const form = document.getElementById('create-account-form');
+
+        // Modal triggers
+        btnCreate.addEventListener('click', () => modalOverlay.classList.add('active'));
+        const closeModal = () => {
+            modalOverlay.classList.remove('active');
+            form.reset();
+        };
+        btnCloseModal.addEventListener('click', closeModal);
+        btnCancel.addEventListener('click', closeModal);
+
+        // Fetch Accounts & Dashboard
+        async function loadData() {
+            try {
+                // Fetch Accounts list
+                const accRes = await fetch('/accounts');
+                const accounts = await accRes.json();
+
+                // Fetch Dashboard stats
+                const dashRes = await fetch('/accounts/dashboard');
+                const dash = await dashRes.json();
+
+                renderDashboard(dash);
+                renderAccounts(accounts);
+            } catch (err) {
+                console.error("Erro ao carregar dados do backend: ", err);
+            }
+        }
+
+        function renderDashboard(dash) {
+            document.getElementById('stats-total').innerText = dash.totalAccounts || 0;
+            document.getElementById('stats-provisioning').innerText = dash.accountsInCreation || 0;
+            document.getElementById('stats-active').innerText = dash.activeAccounts || 0;
+            document.getElementById('stats-failed').innerText = dash.failedAccounts || 0;
+
+            document.getElementById('badge-total-accounts').innerText = `${dash.totalAccounts || 0} Contas`;
+
+            // Provider distribution chart
+            const providerChart = document.getElementById('provider-chart');
+            providerChart.innerHTML = '';
+            const providers = dash.accountsByProvider || {};
+            const maxProviders = Math.max(...Object.values(providers), 1);
+            for (const [prov, count] of Object.entries(providers)) {
+                const pct = (count / maxProviders) * 100;
+                providerChart.innerHTML += `
+                    <div class="bar-item">
+                        <div class="bar-labels">
+                            <span class="bar-label-name">${prov}</span>
+                            <span class="bar-label-val">${count} (${Math.round((count / (dash.totalAccounts || 1)) * 100)}%)</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Cost center distribution chart
+            const ccChart = document.getElementById('cost-center-chart');
+            ccChart.innerHTML = '';
+            const ccs = dash.accountsByCostCenter || {};
+            const maxCcs = Math.max(...Object.values(ccs), 1);
+            for (const [cc, count] of Object.entries(ccs)) {
+                const pct = (count / maxCcs) * 100;
+                ccChart.innerHTML += `
+                    <div class="bar-item">
+                        <div class="bar-labels">
+                            <span class="bar-label-name">${cc}</span>
+                            <span class="bar-label-val">${count} (${Math.round((count / (dash.totalAccounts || 1)) * 100)}%)</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function renderAccounts(accounts) {
+            // Filter accounts
+            const seedAccounts = accounts.filter(acc => acc.seedAccountId === null || acc.seedAccountId === undefined);
+            const childAccounts = accounts.filter(acc => acc.seedAccountId !== null && acc.seedAccountId !== undefined);
+
+            // Update badges
+            document.getElementById('badge-seed-accounts').innerText = `${seedAccounts.length} Contas Base`;
+            document.getElementById('badge-total-accounts').innerText = `${childAccounts.length} Contas`;
+
+            // Render Seed Accounts
+            const seedContainer = document.getElementById('seed-accounts-list');
+            if (seedAccounts.length === 0) {
+                seedContainer.innerHTML = '<div class="empty-state">Nenhuma conta semente/base cadastrada.</div>';
+            } else {
+                seedContainer.innerHTML = seedAccounts.map(acc => {
+                    const statusClass = (acc.state || '').toLowerCase();
+                    const providerClass = (acc.provider || '').toLowerCase();
+                    return `
+                        <div class="stat-card" style="border: 1px solid var(--border-color); background: rgba(31, 41, 55, 0.4); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; position: relative;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="provider-badge ${providerClass}">${acc.provider} MASTER</span>
+                                <span class="status-pill ${statusClass}">${acc.state}</span>
+                            </div>
+                            <div>
+                                <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-bottom: 0.25rem;">${acc.name}</h3>
+                                <p style="font-size: 0.85rem; color: var(--text-secondary);">${acc.email}</p>
+                            </div>
+                            <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 0.25rem 0;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.75rem;">
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <span style="color: var(--accent-emerald);">●</span>
+                                    <span style="color: var(--text-primary); font-weight: 600;">OIDC Federação</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <span style="color: var(--accent-emerald);">●</span>
+                                    <span style="color: var(--text-primary); font-weight: 600;">Billing Link</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <span style="color: var(--accent-emerald);">●</span>
+                                    <span style="color: var(--text-primary); font-weight: 600;">Vending Active</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <span style="color: var(--accent-emerald);">●</span>
+                                    <span style="color: var(--text-primary); font-weight: 600;">DR Verified</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // Render Child Accounts
+            const listContainer = document.getElementById('accounts-list');
+            if (childAccounts.length === 0) {
+                listContainer.innerHTML = '<div class="empty-state">Nenhuma conta corporativa provisionada até o momento.</div>';
+                return;
+            }
+
+            listContainer.innerHTML = childAccounts.map(acc => {
+                const statusClass = (acc.state || '').toLowerCase();
+                const providerClass = (acc.provider || '').toLowerCase();
+                
+                let errorHtml = '';
+                if (statusClass === 'failed' && acc.errorMessage) {
+                    errorHtml = `<div class="error-message-box"><strong>Erro de provisionamento:</strong> ${acc.errorMessage}</div>`;
+                }
+
+                return `
+                    <div class="account-card" id="account-card-${acc.id}">
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <div class="account-card-main" style="display:flex; justify-content:space-between; align-items:center;">
+                                <div class="account-info">
+                                    <div class="account-name-row">
+                                        <span class="account-name">${acc.name}</span>
+                                        <span class="provider-badge ${providerClass}">${acc.provider}</span>
+                                    </div>
+                                    <div class="account-meta">
+                                        <span>ID: ${acc.id}</span>
+                                        <div class="meta-dot"></div>
+                                        <span>${acc.email}</span>
+                                        <div class="meta-dot"></div>
+                                        <span>${acc.costCenter}</span>
+                                        ${acc.seedAccountId ? `
+                                            <div class="meta-dot"></div>
+                                            <span>Semente: #${acc.seedAccountId}</span>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                                <span class="status-pill ${statusClass}">
+                                    ${acc.state}
+                                </span>
+                            </div>
+                            ${errorHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Form Submit
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const provider = document.getElementById('provider').value;
+            const costCenter = document.getElementById('costCenter').value;
+            const seedAccountIdVal = document.getElementById('seedAccountId').value;
+
+            const payload = {
+                name,
+                email,
+                provider,
+                costCenter,
+                seedAccountId: seedAccountIdVal ? parseInt(seedAccountIdVal, 10) : null
+            };
+
+            try {
+                const res = await fetch('/accounts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    closeModal();
+                    loadData();
+                } else {
+                    const errText = await res.text();
+                    alert("Erro ao solicitar provisionamento: " + errText);
+                }
+            } catch (err) {
+                alert("Erro de conexão ao servidor.");
+            }
+        });
+
+        // Initialize & Auto Poll (5 seconds)
+        loadData();
+        setInterval(loadData, 5000);
+    </script>
+</body>
+</html>

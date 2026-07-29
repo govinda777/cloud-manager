@@ -10,11 +10,9 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import io.cucumber.java.en.And;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
 public class ProvisioningSteps {
 
     @Autowired
@@ -39,7 +37,7 @@ public class ProvisioningSteps {
         seedAccount.setEmail("billing-seed@" + provider.toLowerCase() + ".com");
         seedAccount.setCostCenter("CC-BILLING");
         seedAccount.setState(AccountState.ACTIVE);
-        repositoryGateway.save(seedAccount);
+        seedAccount = repositoryGateway.save(seedAccount);
 
         inputAccount = new CloudAccount();
         inputAccount.setName(name);
@@ -58,6 +56,12 @@ public class ProvisioningSteps {
     @Then("the account state should be updated to {string}")
     public void checkState(String expectedState) {
         CloudAccount fresh = repositoryGateway.findById(createdAccount.getId()).orElseThrow();
+        if (!expectedState.equals(fresh.getState().name())) {
+            System.err.println("=== TEST FAILURE DETAILS ===");
+            System.err.println("State: " + fresh.getState().name());
+            System.err.println("Error Message: " + fresh.getErrorMessage());
+            System.err.println("============================");
+        }
         assertEquals(expectedState, fresh.getState().name());
     }
 

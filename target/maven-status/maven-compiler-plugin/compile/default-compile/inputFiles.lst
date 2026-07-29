@@ -3,12 +3,14 @@
 /Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/CloudManagerApplication.java
 /Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/business/logic/CreateAccountUseCase.java
 /Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/infrastructure/config/UseCaseConfig.java
+/Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/infrastructure/config/DatabaseSeeder.java
 /Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/business/gateway/CloudProviderGateway.java
 /Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/business/model/AccountState.java
 /Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/infrastructure/db/AccountRepositoryAdapter.java
 /Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/infrastructure/cloud/MockCloudProviderAdapter.java
 /Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/business/logic/ProcessAccountProvisioningUseCase.java
 /Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/business/gateway/AccountRepositoryGateway.java
+/Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/infrastructure/config/OpenApiConfig.java
 /Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/infrastructure/db/JpaAccountRepository.java
 /Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/infrastructure/db/AccountJpaEntity.java
 /Users/govinda/projetos/cloud-manager/src/main/java/com/govinda777/execution/business/gateway/QueueGateway.java
