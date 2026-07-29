@@ -1,0 +1,9 @@
+package com.govinda777.execution.business.model;
+
+public enum AccountState {
+    CREATED,
+    IN_PROVISIONING,
+    BILLING_LINKED,
+    ACTIVE,
+    FAILED
+}

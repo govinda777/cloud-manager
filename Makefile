@@ -46,17 +46,30 @@ logs: ## Exibe os logs dos contêineres em tempo real
 	docker compose logs -f
 
 ## @ Suíte de Testes
-test: ## Executa os testes unitários do projeto
-	./mvnw test -Dtest="*Test" -DfailIfNoTests=false
+test: ## Executa os testes unitários do projeto (detecta Java ou roda no Docker com cache)
+	@if command -v java >/dev/null 2>&1; then \
+		./mvnw test -Dtest="*Test" -DfailIfNoTests=false; \
+	else \
+		docker run --rm -v $$(pwd):/app -v ~/.m2:/root/.m2 -w /app maven:3.9.6-eclipse-temurin-21-alpine mvn test -Dtest="*Test" -DfailIfNoTests=false; \
+	fi
 
-test-integration: up ## Executa os testes de integração (sobe a infraestrutura se necessário)
-	./mvnw test-compile failsafe:integration-test failsafe:verify
+test-integration: up ## Executa os testes de integração (detecta Java ou roda no Docker com cache)
+	@if command -v java >/dev/null 2>&1; then \
+		./mvnw test-compile failsafe:integration-test failsafe:verify; \
+	else \
+		docker run --rm -v $$(pwd):/app -v ~/.m2:/root/.m2 -w /app --network cloud-manager_cloud-manager-net -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/cloud_manager_db -e AWS_SQS_ENDPOINT=http://elasticmq:9324 maven:3.9.6-eclipse-temurin-21-alpine mvn test-compile failsafe:integration-test failsafe:verify; \
+	fi
 
-test-bdd: up ## Executa os cenários BDD/Cucumber. Exemplo de uso: make test-bdd TAGS="@smoke"
-	./mvnw test -Dcucumber.filter.tags=$(TAGS)
+test-bdd: up ## Executa os cenários BDD/Cucumber (detecta Java ou roda no Docker com cache)
+	@if command -v java >/dev/null 2>&1; then \
+		./mvnw test -Dcucumber.filter.tags=$(TAGS); \
+	else \
+		docker run --rm -v $$(pwd):/app -v ~/.m2:/root/.m2 -w /app --network cloud-manager_cloud-manager-net -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/cloud_manager_db -e AWS_SQS_ENDPOINT=http://elasticmq:9324 maven:3.9.6-eclipse-temurin-21-alpine mvn test -Dcucumber.filter.tags=$(TAGS); \
+	fi
 
 ## @ Limpeza
 clean: down ## Limpa contêineres, volumes Docker, caches e o diretório de build target/
 	docker compose down -v --remove-orphans
-	./mvnw clean
+	@if command -v java >/dev/null 2>&1; then ./mvnw clean; else docker run --rm -v $$(pwd):/app -w /app maven:3.9.6-eclipse-temurin-21-alpine mvn clean; fi
 	@rm -rf .tmp target/
+
