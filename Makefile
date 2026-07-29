@@ -1,5 +1,11 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup init env up down restart test test-integration test-bdd clean logs status
+.PHONY: help setup init env up down restart test test-integration test-bdd clean logs status config aws gcp
+
+# Permite passar argumentos para o comando config (ex: make config aws)
+ifeq ($(firstword $(MAKECMDGOALS)),config)
+  CONFIG_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  $(eval $(CONFIG_ARGS):;@:)
+endif
 
 # Variáveis
 ENV_FILE ?= .env
@@ -14,6 +20,15 @@ help: ## Exibe os comandos disponíveis no Makefile
 
 ## @ Setup & Inicialização
 setup: env init ## Inicializa o ambiente local completo (gera .env e baixa dependências)
+
+config: ## Configura recursos específicos do projeto (ex: make config aws | gcp)
+	@if [ "$(CONFIG_ARGS)" = "aws" ]; then \
+		bash .agents/skills/ponta-a-ponta/scripts/config-aws.sh; \
+	elif [ "$(CONFIG_ARGS)" = "gcp" ]; then \
+		bash .agents/skills/ponta-a-ponta/scripts/config-gcp.sh; \
+	else \
+		echo "Uso: make config [aws|gcp]"; \
+	fi
 
 env: ## Cria o arquivo .env local a partir do .env.example se não existir
 	@if [ ! -f $(ENV_FILE) ]; then \
