@@ -10,6 +10,9 @@ permissions:
   id-token: write # Required for requesting the JWT for OIDC
   contents: read
 
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
+
 jobs:
   test:
     name: Build and Test (Unit & BDD)
