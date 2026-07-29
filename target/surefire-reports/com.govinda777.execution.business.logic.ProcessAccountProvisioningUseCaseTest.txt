@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.govinda777.execution.business.logic.ProcessAccountProvisioningUseCaseTest
 -------------------------------------------------------------------------------
-Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.157 s -- in com.govinda777.execution.business.logic.ProcessAccountProvisioningUseCaseTest
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.042 s -- in com.govinda777.execution.business.logic.ProcessAccountProvisioningUseCaseTest

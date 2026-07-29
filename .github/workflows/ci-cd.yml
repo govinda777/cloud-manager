@@ -81,6 +81,7 @@ jobs:
 
       # 1. Autenticação AWS (OIDC ou chaves)
       - name: Configure AWS Credentials
+        if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
@@ -89,6 +90,7 @@ jobs:
 
       # 2. Autenticação GCP
       - name: Authenticate to Google Cloud
+        if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
