@@ -29,6 +29,11 @@ public class AccountRepositoryAdapter implements AccountRepositoryGateway {
     }
 
     @Override
+    public Optional<CloudAccount> findByName(String name) {
+        return jpaRepository.findByName(name).map(this::toDomain);
+    }
+
+    @Override
     public Optional<CloudAccount> findSeedAccount(String provider) {
         return jpaRepository.findSeedAccount(provider).map(this::toDomain);
     }

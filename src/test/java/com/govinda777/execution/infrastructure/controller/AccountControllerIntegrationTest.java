@@ -2,6 +2,7 @@ package com.govinda777.execution.infrastructure.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.govinda777.execution.business.gateway.AccountRepositoryGateway;
+import com.govinda777.execution.business.gateway.CloudEnrichmentGateway;
 import com.govinda777.execution.business.model.AccountState;
 import com.govinda777.execution.business.model.CloudAccount;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -35,6 +37,9 @@ class AccountControllerIntegrationTest {
 
     @MockBean
     private AccountRepositoryGateway repositoryGateway;
+
+    @MockBean
+    private CloudEnrichmentGateway cloudEnrichmentGateway;
 
     @BeforeEach
     void setUp() {
@@ -90,5 +95,38 @@ class AccountControllerIntegrationTest {
                 .andExpect(jsonPath("$.totalAccounts").value(1))
                 .andExpect(jsonPath("$.activeAccounts").value(1))
                 .andExpect(jsonPath("$.accountsByCostCenter.CC-DEV").value(1));
+    }
+
+    @Test
+    void shouldGetAccountByNameWithEnrichment() throws Exception {
+        CloudAccount acc = new CloudAccount();
+        acc.setId(5L);
+        acc.setName("AWS-Test-Account");
+        acc.setEmail("test@domain.com");
+        acc.setProvider("AWS");
+        acc.setState(AccountState.ACTIVE);
+        acc.setCostCenter("CC-TEST");
+
+        Map<String, Object> mockEnriched = Map.of(
+                "accountId", "aws-123456789012",
+                "iamRole", "arn:aws:iam::123456789012:role/MockRole"
+        );
+
+        when(repositoryGateway.findByName("AWS-Test-Account")).thenReturn(Optional.of(acc));
+        when(cloudEnrichmentGateway.getEnrichedDetails(any(CloudAccount.class))).thenReturn(mockEnriched);
+
+        mockMvc.perform(get("/accounts/AWS-Test-Account"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("AWS-Test-Account"))
+                .andExpect(jsonPath("$.cloudDetails.accountId").value("aws-123456789012"))
+                .andExpect(jsonPath("$.cloudDetails.iamRole").value("arn:aws:iam::123456789012:role/MockRole"));
+    }
+
+    @Test
+    void shouldReturnNotFoundForNonExistentAccount() throws Exception {
+        when(repositoryGateway.findByName("NonExistent")).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/accounts/NonExistent"))
+                .andExpect(status().isNotFound());
     }
 }

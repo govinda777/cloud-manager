@@ -1,6 +1,7 @@
 package com.govinda777.execution.infrastructure.controller;
 
 import com.govinda777.execution.business.gateway.AccountRepositoryGateway;
+import com.govinda777.execution.business.gateway.CloudEnrichmentGateway;
 import com.govinda777.execution.business.logic.CreateAccountUseCase;
 import com.govinda777.execution.business.model.AccountState;
 import com.govinda777.execution.business.model.CloudAccount;
@@ -31,10 +32,14 @@ public class AccountController {
 
     private final CreateAccountUseCase createAccountUseCase;
     private final AccountRepositoryGateway repositoryGateway;
+    private final CloudEnrichmentGateway cloudEnrichmentGateway;
 
-    public AccountController(CreateAccountUseCase createAccountUseCase, AccountRepositoryGateway repositoryGateway) {
+    public AccountController(CreateAccountUseCase createAccountUseCase, 
+                             AccountRepositoryGateway repositoryGateway,
+                             CloudEnrichmentGateway cloudEnrichmentGateway) {
         this.createAccountUseCase = createAccountUseCase;
         this.repositoryGateway = repositoryGateway;
+        this.cloudEnrichmentGateway = cloudEnrichmentGateway;
     }
 
     @PostMapping
@@ -68,18 +73,21 @@ public class AccountController {
         return ResponseEntity.ok(list);
     }
 
-    @GetMapping("/{id}")
-    @Operation(summary = "Obter conta por ID", description = "Retorna os detalhes de uma conta específica através do seu identificador único.")
+    @GetMapping("/{name}")
+    @Operation(summary = "Obter conta por Nome", description = "Retorna os detalhes de uma conta específica através do seu nome único.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Conta encontrada com sucesso", 
                     content = { @Content(mediaType = "application/json", schema = @Schema(implementation = AccountResponse.class)) }),
             @ApiResponse(responseCode = "404", description = "Conta não encontrada", content = @Content)
     })
-    public ResponseEntity<AccountResponse> getAccountById(
-            @Parameter(description = "ID da conta a ser buscada", required = true, example = "1")
-            @PathVariable("id") Long id) {
-        return repositoryGateway.findById(id)
-                .map(acc -> ResponseEntity.ok(toResponse(acc)))
+    public ResponseEntity<AccountResponse> getAccountByName(
+            @Parameter(description = "Nome da conta a ser buscada", required = true, example = "AWS-Master-Seed")
+            @PathVariable("name") String name) {
+        return repositoryGateway.findByName(name)
+                .map(acc -> {
+                    Map<String, Object> details = cloudEnrichmentGateway.getEnrichedDetails(acc);
+                    return ResponseEntity.ok(toResponse(acc, details));
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -120,6 +128,10 @@ public class AccountController {
     }
 
     private AccountResponse toResponse(CloudAccount account) {
+        return toResponse(account, null);
+    }
+
+    private AccountResponse toResponse(CloudAccount account, Map<String, Object> cloudDetails) {
         return new AccountResponse(
                 account.getId(),
                 account.getName(),
@@ -130,7 +142,8 @@ public class AccountController {
                 account.getCostCenter(),
                 account.getErrorMessage(),
                 account.getCreatedAt(),
-                account.getUpdatedAt()
+                account.getUpdatedAt(),
+                cloudDetails
         );
     }
 
@@ -192,10 +205,19 @@ public class AccountController {
         private LocalDateTime createdAt;
         @Schema(description = "Data da última modificação")
         private LocalDateTime updatedAt;
+        @Schema(description = "Dados dinâmicos enriquecidos em tempo de execução da cloud")
+        private Map<String, Object> cloudDetails;
 
         public AccountResponse(Long id, String name, String email, String provider, String state, 
                                Long seedAccountId, String costCenter, String errorMessage, 
                                LocalDateTime createdAt, LocalDateTime updatedAt) {
+            this(id, name, email, provider, state, seedAccountId, costCenter, errorMessage, createdAt, updatedAt, null);
+        }
+
+        public AccountResponse(Long id, String name, String email, String provider, String state, 
+                               Long seedAccountId, String costCenter, String errorMessage, 
+                               LocalDateTime createdAt, LocalDateTime updatedAt,
+                               Map<String, Object> cloudDetails) {
             this.id = id;
             this.name = name;
             this.email = email;
@@ -206,6 +228,7 @@ public class AccountController {
             this.errorMessage = errorMessage;
             this.createdAt = createdAt;
             this.updatedAt = updatedAt;
+            this.cloudDetails = cloudDetails;
         }
 
         // Getters
@@ -219,6 +242,7 @@ public class AccountController {
         public String getErrorMessage() { return errorMessage; }
         public LocalDateTime getCreatedAt() { return createdAt; }
         public LocalDateTime getUpdatedAt() { return updatedAt; }
+        public Map<String, Object> getCloudDetails() { return cloudDetails; }
     }
 
     @Schema(description = "Consolidado de métricas do Dashboard de Negócio")

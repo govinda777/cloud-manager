@@ -7,6 +7,7 @@ import java.util.Optional;
 public interface AccountRepositoryGateway {
     CloudAccount save(CloudAccount account);
     Optional<CloudAccount> findById(Long id);
+    Optional<CloudAccount> findByName(String name);
     Optional<CloudAccount> findSeedAccount(String provider);
     List<CloudAccount> findAll();
     List<CloudAccount> findByCostCenter(String costCenter);

@@ -19,4 +19,6 @@ public interface JpaAccountRepository extends JpaRepository<AccountJpaEntity, Lo
 
     @Query("SELECT a FROM AccountJpaEntity a WHERE a.provider = :provider AND a.state = 'READY_TO_BOOK' ORDER BY a.id ASC")
     List<AccountJpaEntity> findAvailablePoolAccounts(@Param("provider") String provider);
+
+    Optional<AccountJpaEntity> findByName(String name);
 }

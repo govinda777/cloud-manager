@@ -542,6 +542,74 @@
             color: var(--text-secondary);
             font-weight: 500;
         }
+
+        /* Enriquecimento e detalhes */
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        @media (max-width: 600px) {
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .details-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        .details-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .details-value {
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        .details-section-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            margin: 1.5rem 0 0.75rem 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.25rem;
+        }
+        .enriched-box {
+            background-color: var(--bg-primary);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .error-details-box {
+            background-color: rgba(244, 63, 94, 0.08);
+            border: 1px solid rgba(244, 63, 94, 0.2);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            color: var(--accent-rose);
+            font-size: 0.85rem;
+            word-break: break-word;
+            font-family: monospace;
+        }
+        .account-card, .seed-account-card {
+            cursor: pointer;
+        }
+        .seed-account-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(59, 130, 246, 0.5) !important;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.15);
+        }
     </style>
 </head>
 <body>
@@ -673,6 +741,22 @@
         </div>
     </div>
 
+    <!-- Modal Details -->
+    <div class="modal-overlay" id="modal-details-overlay">
+        <div class="modal" style="max-width: 650px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3 class="section-title">Detalhes da Conta Cloud</h3>
+                <button class="modal-close" id="btn-close-details">&times;</button>
+            </div>
+            <div id="modal-details-content">
+                <!-- Conteúdo Dinâmico -->
+            </div>
+            <div class="form-actions" style="margin-top: 1.5rem;">
+                <button type="button" class="btn btn-outline" id="btn-close-details-footer">Fechar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const modalOverlay = document.getElementById('modal-overlay');
         const btnCreate = document.getElementById('btn-create');
@@ -774,7 +858,7 @@
                     const statusClass = (acc.state || '').toLowerCase();
                     const providerClass = (acc.provider || '').toLowerCase();
                     return `
-                        <div class="stat-card" style="border: 1px solid var(--border-color); background: rgba(31, 41, 55, 0.4); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; position: relative;">
+                        <div class="stat-card seed-account-card" data-id="${acc.id}" data-name="${acc.name}" style="border: 1px solid var(--border-color); background: rgba(31, 41, 55, 0.4); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; position: relative;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <span class="provider-badge ${providerClass}">${acc.provider} MASTER</span>
                                 <span class="status-pill ${statusClass}">${acc.state}</span>
@@ -824,7 +908,7 @@
                 }
 
                 return `
-                    <div class="account-card" id="account-card-${acc.id}">
+                    <div class="account-card" id="account-card-${acc.id}" data-id="${acc.id}" data-name="${acc.name}">
                         <div style="flex: 1; display: flex; flex-direction: column;">
                             <div class="account-card-main" style="display:flex; justify-content:space-between; align-items:center;">
                                 <div class="account-info">
@@ -892,6 +976,205 @@
                 alert("Erro de conexão ao servidor.");
             }
         });
+
+        // Modal Details Handlers
+        const detailsOverlay = document.getElementById('modal-details-overlay');
+        const btnCloseDetails = document.getElementById('btn-close-details');
+        const btnCloseDetailsFooter = document.getElementById('btn-close-details-footer');
+        const detailsContent = document.getElementById('modal-details-content');
+
+        const closeDetailsModal = () => {
+            detailsOverlay.classList.remove('active');
+            detailsContent.innerHTML = '';
+        };
+
+        btnCloseDetails.addEventListener('click', closeDetailsModal);
+        btnCloseDetailsFooter.addEventListener('click', closeDetailsModal);
+
+        // Event delegation for card clicks
+        document.getElementById('seed-accounts-list').addEventListener('click', (e) => {
+            const card = e.target.closest('.seed-account-card');
+            if (card) {
+                const accountName = card.getAttribute('data-name');
+                openDetailsModal(accountName);
+            }
+        });
+
+        document.getElementById('accounts-list').addEventListener('click', (e) => {
+            const card = e.target.closest('.account-card');
+            if (card) {
+                const accountName = card.getAttribute('data-name');
+                openDetailsModal(accountName);
+            }
+        });
+
+        async function openDetailsModal(name) {
+            detailsContent.innerHTML = '<div class="empty-state">Buscando informações enriquecidas na cloud...</div>';
+            detailsOverlay.classList.add('active');
+            
+            try {
+                const res = await fetch(`/accounts/${name}`);
+                if (!res.ok) {
+                    detailsContent.innerHTML = '<div class="empty-state" style="color:var(--accent-rose)">Erro ao buscar detalhes da conta.</div>';
+                    return;
+                }
+                const acc = await res.json();
+                renderAccountDetails(acc);
+            } catch (err) {
+                console.error(err);
+                detailsContent.innerHTML = '<div class="empty-state" style="color:var(--accent-rose)">Erro de conexão ao servidor.</div>';
+            }
+        }
+
+        function renderAccountDetails(acc) {
+            const providerClass = (acc.provider || '').toLowerCase();
+            const statusClass = (acc.state || '').toLowerCase();
+            
+            let dateCreated = new Date(acc.createdAt).toLocaleString('pt-BR');
+            let dateUpdated = new Date(acc.updatedAt).toLocaleString('pt-BR');
+
+            let seedInfo = acc.seedAccountId ? `<span class="details-value">ID #${acc.seedAccountId}</span>` : '<span class="details-value" style="color:var(--text-secondary)">Nenhum (Conta Base)</span>';
+
+            let errorSection = '';
+            if (acc.errorMessage) {
+                errorSection = `
+                    <div class="error-details-box">
+                        <strong>Falha no Provisionamento:</strong>
+                        <pre style="margin-top: 0.5rem; white-space: pre-wrap; font-size: 0.75rem; font-family: monospace;">${acc.errorMessage}</pre>
+                    </div>
+                `;
+            }
+
+            let cloudDetailsHtml = '';
+            if (acc.cloudDetails && Object.keys(acc.cloudDetails).length > 0) {
+                const cd = acc.cloudDetails;
+                if (acc.provider === 'AWS') {
+                    cloudDetailsHtml = `
+                        <div class="details-section-title">Enriquecimento de Nuvem (Tempo Real - AWS)</div>
+                        <div class="enriched-box">
+                            <div class="details-grid">
+                                <div class="details-item">
+                                    <span class="details-label">AWS Account ID</span>
+                                    <span class="details-value" style="font-family: monospace; font-weight:700;">${cd.accountId || '-'}</span>
+                                </div>
+                                <div class="details-item">
+                                    <span class="details-label">Billing Master Linked</span>
+                                    <span class="details-value" style="color:var(--accent-emerald)">● Vinculado</span>
+                                </div>
+                                <div class="details-item" style="grid-column: span 2;">
+                                    <span class="details-label">IAM Role de Operação</span>
+                                    <span class="details-value" style="font-family: monospace; font-size:0.8rem;">${cd.iamRole || '-'}</span>
+                                </div>
+                                <div class="details-item">
+                                    <span class="details-label">Custo Acumulado (Mês)</span>
+                                    <span class="details-value" style="color:var(--accent-emerald); font-weight:700;">${cd.monthToDateCost || '-'}</span>
+                                </div>
+                                <div class="details-item">
+                                    <span class="details-label">Quota de vCPUs</span>
+                                    <span class="details-value">${cd.activeQuota || '-'}</span>
+                                </div>
+                                <div class="details-item">
+                                    <span class="details-label">Alertas do Security Hub</span>
+                                    <span class="details-value">${cd.securityAlerts || '-'}</span>
+                                </div>
+                            </div>
+                            <div style="border-top:1px solid var(--border-color); padding-top:0.75rem;">
+                                <span class="details-label" style="display:block; margin-bottom:0.4rem;">Recursos Ativos na Região</span>
+                                <div style="display:flex; gap:1.25rem; font-size:0.8rem; flex-wrap: wrap;">
+                                    <span>🖥️ Instâncias EC2: <strong>${cd.activeResources?.ec2Instances ?? 0}</strong></span>
+                                    <span>🪣 Buckets S3: <strong>${cd.activeResources?.s3Buckets ?? 0}</strong></span>
+                                    <span>💾 DBs RDS: <strong>${cd.activeResources?.rdsDatabases ?? 0}</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (acc.provider === 'GCP') {
+                    cloudDetailsHtml = `
+                        <div class="details-section-title">Enriquecimento de Nuvem (Tempo Real - GCP)</div>
+                        <div class="enriched-box">
+                            <div class="details-grid">
+                                <div class="details-item">
+                                    <span class="details-label">GCP Project ID</span>
+                                    <span class="details-value" style="font-family: monospace; font-weight:700;">${cd.projectId || '-'}</span>
+                                </div>
+                                <div class="details-item">
+                                    <span class="details-label">GCP Project Number</span>
+                                    <span class="details-value" style="font-family: monospace;">${cd.projectNumber || '-'}</span>
+                                </div>
+                                <div class="details-item" style="grid-column: span 2;">
+                                    <span class="details-label">Conta de Faturamento (Billing)</span>
+                                    <span class="details-value">${cd.billingStatus || '-'}</span>
+                                </div>
+                                <div class="details-item">
+                                    <span class="details-label">Custo Acumulado (Mês)</span>
+                                    <span class="details-value" style="color:var(--accent-emerald); font-weight:700;">${cd.monthToDateCost || '-'}</span>
+                                </div>
+                            </div>
+                            <div style="border-top:1px solid var(--border-color); padding-top:0.75rem;">
+                                <span class="details-label" style="display:block; margin-bottom:0.4rem;">APIs Habilitadas</span>
+                                <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">
+                                    ${(cd.enabledApis || []).map(api => `<span style="background:rgba(255,255,255,0.06); padding:0.15rem 0.4rem; border-radius:0.25rem; font-size:0.7rem; font-family:monospace;">${api}</span>`).join(' ')}
+                                </div>
+                            </div>
+                            <div style="border-top:1px solid var(--border-color); padding-top:0.75rem; margin-top:0.25rem;">
+                                <span class="details-label" style="display:block; margin-bottom:0.4rem;">Recursos Ativos no Projeto</span>
+                                <div style="display:flex; gap:1.25rem; font-size:0.8rem; flex-wrap: wrap;">
+                                    <span>🖥️ VM Compute: <strong>${cd.activeResources?.computeVMs ?? 0}</strong></span>
+                                    <span>🪣 Buckets Storage: <strong>${cd.activeResources?.storageBuckets ?? 0}</strong></span>
+                                    <span>💾 Cloud SQL: <strong>${cd.activeResources?.cloudSqlInstances ?? 0}</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } else if (acc.state === 'ACTIVE' || acc.state === 'BOOKED' || acc.state === 'READY_TO_BOOK') {
+                cloudDetailsHtml = `
+                    <div class="details-section-title">Enriquecimento de Nuvem</div>
+                    <div class="empty-state" style="padding:1rem;">Nenhum detalhe adicional disponível para este provedor no momento.</div>
+                `;
+            }
+
+            detailsContent.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; background:rgba(255,255,255,0.02); padding:1rem; border-radius:0.75rem; border:1px solid var(--border-color);">
+                    <div>
+                        <h2 style="font-size:1.4rem; font-weight:800; color:#fff;">${acc.name}</h2>
+                        <span class="provider-badge ${providerClass}" style="margin-top:0.25rem; display:inline-block;">${acc.provider}</span>
+                    </div>
+                    <span class="status-pill ${statusClass}" style="font-size:0.9rem; padding:0.4rem 0.8rem;">${acc.state}</span>
+                </div>
+
+                <div class="details-section-title">Metadados Locais (Governança)</div>
+                <div class="details-grid">
+                    <div class="details-item">
+                        <span class="details-label">ID do Sistema</span>
+                        <span class="details-value">#${acc.id}</span>
+                    </div>
+                    <div class="details-item">
+                        <span class="details-label">Centro de Custo</span>
+                        <span class="details-value">${acc.costCenter}</span>
+                    </div>
+                    <div class="details-item" style="grid-column: span 2;">
+                        <span class="details-label">E-mail do Administrador</span>
+                        <span class="details-value">${acc.email}</span>
+                    </div>
+                    <div class="details-item">
+                        <span class="details-label">Conta Semente / Billing Root</span>
+                        ${seedInfo}
+                    </div>
+                    <div class="details-item">
+                        <span class="details-label">Data de Solicitação</span>
+                        <span class="details-value">${dateCreated}</span>
+                    </div>
+                    <div class="details-item">
+                        <span class="details-label">Última Atualização</span>
+                        <span class="details-value">${dateUpdated}</span>
+                    </div>
+                </div>
+
+                ${errorSection}
+                ${cloudDetailsHtml}
+            `;
+        }
 
         // Initialize & Auto Poll (5 seconds)
         loadData();
