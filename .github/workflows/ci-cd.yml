@@ -74,6 +74,10 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'pull_request'
+    env:
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
     steps:
       - name: Checkout repository
@@ -81,20 +85,20 @@ jobs:
 
       # 1. Autenticação AWS (OIDC ou chaves)
       - name: Configure AWS Credentials
-        if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
+        if: ${{ env.AWS_ROLE_TO_ASSUME != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-1
         continue-on-error: true # Permite executar mesmo se a AWS não estiver configurada no repo ainda
 
       # 2. Autenticação GCP
       - name: Authenticate to Google Cloud
-        if: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
+        if: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
         continue-on-error: true
 
       # 3. Executar o provisionamento baseado na Branch/PR (GitOps)
