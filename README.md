@@ -1,5 +1,7 @@
 # Cloud Manager / CAPE (Cloud Account Provisioning Engine)
 
+![](./banner.png)
+
 O **Cloud Manager** (ou CAPE - Cloud Account Provisioning Engine) é uma plataforma para provisionamento e gestão automatizada do ciclo de vida de contas em nuvens públicas (AWS e GCP).
 
 Desenvolvido utilizando **Java 21**, **Spring Boot 3.2+** e seguindo rigorosamente os padrões de **Arquitetura Hexagonal Orientada a Eventos (HEDA)**, o sistema isola completamente as regras de negócio de governança de nuvem da volatilidade de SDKs externos e frameworks de persistência ou mensageria.
