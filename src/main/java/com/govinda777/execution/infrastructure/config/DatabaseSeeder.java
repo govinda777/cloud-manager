@@ -7,6 +7,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
+import org.springframework.beans.factory.annotation.Value;
 import java.time.LocalDateTime;
 
 @Configuration
@@ -14,6 +15,12 @@ import java.time.LocalDateTime;
 public class DatabaseSeeder implements CommandLineRunner {
 
     private final AccountRepositoryGateway repositoryGateway;
+
+    @Value("${AWS_ROOT_EMAIL:aws-billing-seed@corporate.com}")
+    private String awsRootEmail;
+
+    @Value("${GCP_ROOT_EMAIL:gcp-billing-seed@corporate.com}")
+    private String gcpRootEmail;
 
     public DatabaseSeeder(AccountRepositoryGateway repositoryGateway) {
         this.repositoryGateway = repositoryGateway;
@@ -25,7 +32,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         if (repositoryGateway.findSeedAccount("AWS").isEmpty()) {
             CloudAccount awsSeed = new CloudAccount();
             awsSeed.setName("AWS-Master-Seed");
-            awsSeed.setEmail("aws-billing-seed@corporate.com");
+            awsSeed.setEmail(awsRootEmail);
             awsSeed.setProvider("AWS");
             awsSeed.setState(AccountState.ACTIVE);
             awsSeed.setCostCenter("CC-CORP-BILLING");
@@ -38,7 +45,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         if (repositoryGateway.findSeedAccount("GCP").isEmpty()) {
             CloudAccount gcpSeed = new CloudAccount();
             gcpSeed.setName("GCP-Master-Seed");
-            gcpSeed.setEmail("gcp-billing-seed@corporate.com");
+            gcpSeed.setEmail(gcpRootEmail);
             gcpSeed.setProvider("GCP");
             gcpSeed.setState(AccountState.ACTIVE);
             gcpSeed.setCostCenter("CC-CORP-BILLING");

@@ -43,6 +43,8 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-cloud_user}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-cloud_pass}
       AWS_SQS_ENDPOINT: http://elasticmq:9324
+      AWS_ROOT_EMAIL: ${AWS_ROOT_EMAIL:-aws-billing-seed@corporate.com}
+      GCP_ROOT_EMAIL: ${GCP_ROOT_EMAIL:-gcp-billing-seed@corporate.com}
     ports:
       - "8080:8080"
     depends_on:

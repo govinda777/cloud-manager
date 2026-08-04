@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup init env up down restart test test-integration test-bdd clean logs status config aws gcp
+.PHONY: help setup init env up down restart test test-integration test-bdd clean logs status config aws gcp disaster-recovery
 
 # Permite passar argumentos para o comando config (ex: make config aws)
 ifeq ($(firstword $(MAKECMDGOALS)),config)
@@ -111,6 +111,22 @@ test-bdd: up ## Executa os cenários BDD/Cucumber (detecta Java ou roda no Docke
 	else \
 		docker run --rm -v $$(pwd):/app -v ~/.m2:/root/.m2 -w /app --network cloud-manager_cloud-manager-net -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/cloud_manager_db -e AWS_SQS_ENDPOINT=http://elasticmq:9324 maven:3.9.6-eclipse-temurin-21-alpine mvn test -Dcucumber.filter.tags=$(TAGS); \
 	fi
+
+disaster-recovery: up ## Executa a bateria de testes de destruição e criação do Disaster Recovery (Playwright e BDD)
+	@echo "🔥 [DR] Iniciando bateria de testes de Disaster Recovery..."
+	@echo "👉 [Passo 0] Executando destruição prioritária nos provedores cloud..."
+	-npx playwright test tests/dr-cleanup-clouds.spec.ts
+	@echo "👉 [Passo 0] Limpando registros obsoletos de contas base no banco de dados..."
+	-docker exec -i cloud-manager-postgres psql -U cloud_user -d cloud_manager_db -c "DELETE FROM accounts WHERE name LIKE '%Seed%' OR name LIKE '%Master%';"
+	@echo "👉 [Passo 1 & 2] Criando novas contas root e configurando APIs (Playwright)..."
+	-npx playwright test tests/dr-aws-registration.spec.ts tests/dr-gcp-setup.spec.ts tests/dr-aws-bootstrap-iam.spec.ts tests/dr-gcp-bootstrap-sa.spec.ts
+	@echo "👉 [Passo 3 & 4] Rodando suíte de testes BDD para certificar a integridade do DR..."
+	@if command -v java >/dev/null 2>&1; then \
+		./mvnw test -Dtest=CucumberTestRunner; \
+	else \
+		docker run --rm -v $$(pwd):/app -v ~/.m2:/root/.m2 -w /app --network cloud-manager_cloud-manager-net -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/cloud_manager_db -e AWS_SQS_ENDPOINT=http://elasticmq:9324 maven:3.9.6-eclipse-temurin-21-alpine mvn test -Dtest=CucumberTestRunner; \
+	fi
+	@echo "🚀 [DR] Bateria de testes de Disaster Recovery concluída!"
 
 ## @ Limpeza
 clean: down ## Limpa contêineres, volumes Docker, caches e o diretório de build target/
